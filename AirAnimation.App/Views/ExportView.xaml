@@ -53,6 +53,10 @@
                                   SelectedItem="{Binding Fps, Mode=TwoWay}"
                                   HorizontalAlignment="Right" Width="140"/>
                     </Grid>
+                    <Separator Margin="0,8"/>
+                    <CheckBox Content="Отображать инфо-панель (HUD)"
+                              IsChecked="{Binding IncludeHud, Mode=TwoWay}"
+                              ToolTip="Включить отображение скорости, времени и дистанции на итоговом видео" />
                 </StackPanel>
             </Border>
 

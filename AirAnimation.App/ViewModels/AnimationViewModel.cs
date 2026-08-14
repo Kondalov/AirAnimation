@@ -18,6 +18,8 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private double flightAltitude = 2500; // 3D Altitude in meters (500..10000)
     [ObservableProperty] private bool enableBanking = true; // 3D aircraft roll on turns
 
+    [ObservableProperty] private bool enableSpaceIntro = false; // Globe/Space intro animation
+
     // Route Drawing Mode: 'trailOnly' (TravelBoast style) vs 'fullRoute' (Classic preview)
     [ObservableProperty] private string routeDrawMode = "trailOnly"; 
     // Trail Style: 'redDashed', 'whiteDashed', 'neon', 'solid'

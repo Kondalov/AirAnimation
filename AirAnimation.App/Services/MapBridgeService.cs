@@ -84,8 +84,8 @@ public sealed class MapBridgeService
     public Task ClearRouteAsync() =>
         ExecAsync("clearRoute", new { });
 
-    public Task SetTransportAsync(string svgContent, double size = 64) =>
-        ExecAsync("setTransport", new { svg = svgContent, size });
+    public Task SetTransportAsync(string svgContent, double size = 64, double speedKmh = 300) =>
+        ExecAsync("setTransport", new { svg = svgContent, size, speedKmh });
 
     public Task SetTransportSizeAsync(double size) =>
         ExecAsync("setTransportSize", new { size });
@@ -96,8 +96,8 @@ public sealed class MapBridgeService
     public Task SetMapStyleAsync(string styleUrl) =>
         ExecAsync("setMapStyle", new { styleUrl });
 
-    public Task PlayAnimationAsync(double speedMultiplier, bool cameraFollow, double cameraPitch, string cameraMode = "follow", double cameraZoom = 7.5, double cameraBearingOffset = 0) =>
-        ExecAsync("playAnimation", new { speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset });
+    public Task PlayAnimationAsync(double speedMultiplier, bool cameraFollow, double cameraPitch, string cameraMode = "follow", double cameraZoom = 7.5, double cameraBearingOffset = 0, bool globeIntro = false) =>
+        ExecAsync("playAnimation", new { speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro });
 
     public Task PauseAnimationAsync() =>
         ExecAsync("pauseAnimation", new { });
@@ -116,6 +116,9 @@ public sealed class MapBridgeService
 
     public Task SeekAnimationAsync(double progress) =>
         ExecAsync("seekAnimation", new { progress });
+
+    public Task SetHudVisibilityAsync(bool visible) =>
+        ExecAsync("setHudVisibility", new { visible });
 
     public Task FitBoundsAsync() =>
         ExecAsync("fitBounds", new { });

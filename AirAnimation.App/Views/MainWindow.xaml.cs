@@ -10,9 +10,16 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        int useImmersiveDarkMode = 1;
+        DwmSetWindowAttribute(hwnd, 20, ref useImmersiveDarkMode, sizeof(int));
 
         if (DataContext is MainViewModel vm)
         {
@@ -68,7 +75,7 @@ public partial class MainWindow : Window
             {
                 vm.MapViewModel.OnMapReady();
                 if (vm.TransportViewModel.SelectedTransport is { } t)
-                    _ = vm.MapViewModel.SetTransportAsync(t.SvgIcon, vm.TransportViewModel.TransportSize);
+                    _ = vm.MapViewModel.SetTransportAsync(t.SvgIcon, vm.TransportViewModel.TransportSize, t.DefaultSpeed);
                 else
                     vm.TransportViewModel.SelectTransport("airliner");
             };

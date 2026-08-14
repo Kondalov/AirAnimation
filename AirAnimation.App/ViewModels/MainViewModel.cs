@@ -41,7 +41,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async void OnTransportChanged(object? sender, TransportModel transport)
     {
-        await MapViewModel.SetTransportAsync(transport.SvgIcon, TransportViewModel.TransportSize);
+        await MapViewModel.SetTransportAsync(transport.SvgIcon, TransportViewModel.TransportSize, transport.DefaultSpeed);
         StatusMessage = $"Транспорт: {transport.Name}";
     }
 
@@ -153,7 +153,8 @@ public sealed partial class MainViewModel : ObservableObject
             AnimationViewModel.CameraPitch,
             AnimationViewModel.CameraMode,
             AnimationViewModel.CameraZoom,
-            AnimationViewModel.CameraBearingOffset);
+            AnimationViewModel.CameraBearingOffset,
+            AnimationViewModel.EnableSpaceIntro);
         StatusMessage = "Воспроизведение 3D анимации...";
     }
 

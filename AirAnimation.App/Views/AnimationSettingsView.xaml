@@ -110,6 +110,9 @@
                     <CheckBox Content="Следить за объектом"
                               IsChecked="{Binding CameraFollow, Mode=TwoWay}" Margin="0,0,0,10"/>
 
+                    <CheckBox Content="🚀 Старт из космоса (Globe Intro)"
+                              IsChecked="{Binding EnableSpaceIntro, Mode=TwoWay}" Margin="0,0,0,10"/>
+
                     <TextBlock Text="Режим ракурса камеры:" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                     <UniformGrid Columns="3" Margin="0,0,0,12">
                         <Button Content="3D Погоня" Style="{StaticResource GhostBtn}" FontSize="10" Padding="4,4" Margin="2" Tag="follow" Click="CameraMode_Click"/>
@@ -164,6 +167,7 @@
                         <Button Content="Светлая" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="light" Click="MapStyle_Click"/>
                         <Button Content="Спутник" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="satellite" Click="MapStyle_Click"/>
                         <Button Content="Мультяшная" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="cartoon" Click="MapStyle_Click"/>
+                        <Button Content="OSM Liberty" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="liberty" Click="MapStyle_Click"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>

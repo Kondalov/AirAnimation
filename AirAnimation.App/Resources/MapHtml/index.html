@@ -7,6 +7,7 @@
 <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body, #map { width:100%; height:100%; background:#0b0e14; overflow:hidden; }
@@ -193,7 +194,8 @@ const STYLES = {
   light: LIGHT_STYLE,
   satellite: SATELLITE_STYLE,
   outdoors: DARK_STYLE,
-  cartoon: CARTOON_STYLE
+  cartoon: CARTOON_STYLE,
+  liberty: 'https://maputnik.github.io/osm-liberty/style.json'
 };
 
 const map = new maplibregl.Map({
@@ -214,6 +216,8 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 // ═══════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════
+const ANIM_DURATION_BASE = 15; // Base duration in seconds
+
 const state = {
   waypoints: [],           // [{id, lat, lon, label, marker}]
   routeCoords: [],         // [[lon, lat], ...]
@@ -461,15 +465,15 @@ window.bridge = {
 
   clearRoute() {
     state.routeCoords = [];
+    state.totalDist = 0;
     map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
     map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-    state.transportMarker?.remove();
-    state.transportMarker = null;
   },
 
-  setTransport({ svg, size }) {
+  setTransport({ svg, size, speedKmh }) {
     state.transportSvg = svg;
     if (size) state.transportSize = size;
+    if (speedKmh) state.transportSpeed = speedKmh;
     updateTransportMarkerDOM();
     if (state.routeCoords && state.routeCoords.length >= 2) {
       placeTransportAtProgress(state.animProgress || 0);
@@ -506,7 +510,7 @@ window.bridge = {
     map.once('styledata', () => { rebuildLayers(); });
   },
 
-  playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset }) {
+  playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro }) {
     if (state.routeCoords.length < 2) return;
     state.animSpeed = speedMultiplier || 1;
     state.cameraFollow = cameraFollow !== false;
@@ -518,13 +522,36 @@ window.bridge = {
     state.animPlaying = true;
     if (state.animProgress >= 1) state.animProgress = 0;
 
-    document.getElementById('hud').style.display = 'flex';
-    document.getElementById('hud-speed').textContent = state.animSpeed.toFixed(1) + '×';
-    runAnimation();
+    if (state.showHud !== false) {
+      document.getElementById('hud').style.display = 'flex';
+    }
+    document.getElementById('hud-speed').textContent = Math.round(state.transportSpeed) + ' км/ч';
+
+    if (globeIntro && state.animProgress === 0) {
+      placeTransportAtProgress(0);
+      map.setZoom(1.5);
+      map.setPitch(0);
+      
+      map.flyTo({
+        center: state.routeCoords[0],
+        zoom: state.cameraZoom,
+        pitch: state.cameraPitch,
+        duration: 3500,
+        curve: 1.5,
+        essential: true
+      });
+      
+      map.once('moveend', () => {
+        if (state.animPlaying) runAnimation();
+      });
+    } else {
+      runAnimation();
+    }
   },
 
   pauseAnimation() {
     state.animPlaying = false;
+    map.stop();
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
   },
 
@@ -547,7 +574,12 @@ window.bridge = {
 
   setSpeed({ speedMultiplier }) {
     state.animSpeed = speedMultiplier || 1;
-    document.getElementById('hud-speed').textContent = state.animSpeed.toFixed(1) + '×';
+    // Speed text in HUD now shows Transport speed, so we don't update it here.
+  },
+
+  setHudVisibility({ visible }) {
+    state.showHud = visible !== false;
+    document.getElementById('hud').style.display = state.showHud ? 'flex' : 'none';
   },
 
   setCameraSettings({ cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset }) {
@@ -607,7 +639,7 @@ function createTransportDOM() {
   inner.style.height = '100%';
   inner.style.transformStyle = 'preserve-3d';
   inner.style.transition = 'transform 0.1s linear';
-  inner.innerHTML = state.transportSvg || defaultPlaneSvg();
+  inner.innerHTML = state.transportSvg || '';
   wrapper.appendChild(inner);
   return wrapper;
 }
@@ -619,7 +651,7 @@ function updateTransportMarkerDOM() {
     el.style.width = sz;
     el.style.height = sz;
     if (el.firstChild) {
-      el.firstChild.innerHTML = state.transportSvg || defaultPlaneSvg();
+      el.firstChild.innerHTML = state.transportSvg || '';
     }
   }
 }
@@ -642,123 +674,113 @@ function updateWaypointBadges() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ANIMATION LOOP
+//  ANIMATION LOOP & MATH
 // ═══════════════════════════════════════════════════════════════
-let lastTs = null;
-const ANIM_DURATION_BASE = 40; // baseline seconds for 1x speed
-
 function runAnimation() {
-  if (!state.animPlaying) return;
+  const now = performance.now();
+  if (!state.lastFrameTime) state.lastFrameTime = now;
+  const dt = now - state.lastFrameTime;
+  state.lastFrameTime = now;
 
-  const step = (ts) => {
-    if (!state.animPlaying) return;
-    if (lastTs === null) lastTs = ts;
-    const dt = (ts - lastTs) / 1000;
-    lastTs = ts;
+  const totalSec = ANIM_DURATION_BASE / Math.max(0.1, state.animSpeed);
+  state.animProgress += (dt / 1000) / totalSec;
 
-    const totalPts = state.routeCoords.length;
-    const speed = state.animSpeed;
-    
-    // Smooth progress increment
-    state.animProgress += (dt * speed) / (ANIM_DURATION_BASE * Math.max(1, totalPts / 600));
-    if (state.animProgress > 1) state.animProgress = 1;
+  if (state.animProgress >= 1) {
+    state.animProgress = 1;
+    state.animPlaying = false;
+    placeTransportAtProgress(1);
+    updateTrail(1);
+    updateHud(1);
+    postMessage({ type: 'animationProgress', progress: 1 });
+    return;
+  }
 
-    placeTransportAtProgress(state.animProgress, dt);
-    updateTrail(state.animProgress);
-    updateHud(state.animProgress);
-    postMessage({ type: 'animationProgress', progress: state.animProgress });
+  placeTransportAtProgress(state.animProgress);
+  updateTrail(state.animProgress);
+  updateHud(state.animProgress);
+  postMessage({ type: 'animationProgress', progress: state.animProgress });
 
-    if (state.animProgress < 1) {
-      state.animFrame = requestAnimationFrame(step);
-    } else {
-      state.animPlaying = false;
-      lastTs = null;
-      postMessage({ type: 'animationFinished' });
-    }
-  };
-
-  lastTs = null;
-  state.animFrame = requestAnimationFrame(step);
+  if (state.animPlaying) {
+    state.animFrame = requestAnimationFrame(runAnimation);
+  } else {
+    state.lastFrameTime = null;
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  EXACT POSITIONING & 3D FLIGHT PHYSICS ENGINE
-// ═══════════════════════════════════════════════════════════════
-function placeTransportAtProgress(p, dt = 0.016) {
+function placeTransportAtProgress(p) {
   if (state.routeCoords.length < 2) return;
-  const coords = state.routeCoords;
-  const numSegments = coords.length - 1;
-  const exactIndex = p * numSegments;
-  const idx = Math.min(Math.floor(exactIndex), numSegments - 1);
-  const t = exactIndex - idx;
+  const targetDist = state.totalDist * p;
+  let d = 0, i = 0;
+  for (i = 0; i < state.routeCoords.length - 1; i++) {
+    const c1 = state.routeCoords[i];
+    const c2 = state.routeCoords[i + 1];
+    const segDist = turf.distance(turf.point(c1), turf.point(c2), { units: 'meters' });
+    if (d + segDist >= targetDist || i === state.routeCoords.length - 2) {
+      const ratio = segDist === 0 ? 0 : (targetDist - d) / segDist;
+      const targetLon = c1[0] + (c2[0] - c1[0]) * ratio;
+      const targetLat = c1[1] + (c2[1] - c1[1]) * ratio;
 
-  const c0 = coords[idx];
-  const c1 = coords[Math.min(idx + 1, numSegments)];
-  
-  // Exact Geographic Coordinates (Starts accurately at c0[0] when p=0)
-  const lon = c0[0] + (c1[0] - c0[0]) * t;
-  const lat = c0[1] + (c1[1] - c0[1]) * t;
-  state.currentLon = lon;
-  state.currentLat = lat;
+      if (!state.transportMarker) {
+        state.transportMarker = new maplibregl.Marker({ element: createTransportDOM() })
+          .setLngLat([targetLon, targetLat])
+          .addTo(map);
+      } else {
+        state.transportMarker.setLngLat([targetLon, targetLat]);
+      }
 
-  // Look-Ahead Target for Smooth Heading
-  const lookAheadIdx = Math.min(idx + Math.max(1, Math.floor(coords.length * 0.006)), numSegments);
-  const targetLon = coords[lookAheadIdx][0];
-  const targetLat = coords[lookAheadIdx][1];
-  
-  const rawBearing = calcBearing(lat, lon, targetLat, targetLon);
+      // Calculate instantaneous heading
+      let vehicleHeading = 0;
+      if (p < 1 && segDist > 0) {
+        vehicleHeading = calcBearing(c1[1], c1[0], c2[1], c2[0]);
+      } else {
+        vehicleHeading = state.currentHeading;
+      }
+      state.currentHeading = vehicleHeading;
 
-  // Shortest angular difference
-  if (state.currentHeading === 0 && rawBearing !== 0) {
-    state.currentHeading = rawBearing;
-  }
-  let diffAngle = ((rawBearing - state.currentHeading + 540) % 360) - 180;
-  
-  // Dynamic Aircraft Roll / Banking on turns
-  if (state.enableBanking) {
-    const turnFactor = Math.max(-1, Math.min(1, diffAngle / 25));
-    const targetRoll = turnFactor * 28; // up to 28 degrees bank
-    state.currentBankRoll += (targetRoll - state.currentBankRoll) * Math.min(1, dt * 8);
-  } else {
-    state.currentBankRoll = 0;
-  }
+      // 3D Banking Physics
+      if (state.enableBanking) {
+         let turnDelta = vehicleHeading - state.lastHeading;
+         if (turnDelta > 180) turnDelta -= 360;
+         if (turnDelta < -180) turnDelta += 360;
+         let targetBank = turnDelta * 5; 
+         targetBank = Math.max(-60, Math.min(60, targetBank));
+         state.currentBankRoll += (targetBank - state.currentBankRoll) * 0.1;
+      } else {
+         state.currentBankRoll += (0 - state.currentBankRoll) * 0.2;
+      }
+      state.lastHeading = vehicleHeading;
 
-  // Smooth heading interpolation
-  state.currentHeading = (state.currentHeading + diffAngle * Math.min(1, dt * 12) + 360) % 360;
+      // Apply Orientation Mode Logic
+      let effectiveAngle = vehicleHeading;
+      if (state.orientationMode === 'side') {
+         effectiveAngle = (vehicleHeading + 90) % 360;
+      } else if (state.orientationMode === 'isometric') {
+         effectiveAngle = (vehicleHeading + 45) % 360;
+      } else if (state.orientationMode === 'custom') {
+         effectiveAngle = (vehicleHeading + state.modelAngleOffset) % 360;
+      }
 
-  // Compute final angle with User Orientation Offset
-  let effectiveAngle = (state.currentHeading + (state.modelAngleOffset || 0) + 360) % 360;
+      // Apply true heading rotation
+      state.transportMarker.setRotation(effectiveAngle);
 
-  // Create or Move Marker
-  if (!state.transportMarker) {
-    const el = createTransportDOM();
-    state.transportMarker = new maplibregl.Marker({
-      element: el,
-      anchor: 'center',
-      rotationAlignment: 'map',
-      pitchAlignment: 'map'
-    }).setLngLat([lon, lat]).addTo(map);
-  } else {
-    state.transportMarker.setLngLat([lon, lat]);
-  }
+      // Apply banking tilt to inner container
+      const el = state.transportMarker.getElement();
+      if (el && el.firstChild) {
+        el.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
+      }
 
-  // Apply true heading rotation
-  state.transportMarker.setRotation(effectiveAngle);
-
-  // Apply banking tilt to inner container
-  const el = state.transportMarker.getElement();
-  if (el && el.firstChild) {
-    el.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
-  }
-
-  // Camera Follow
-  if (state.cameraFollow && state.animPlaying) {
-    applyUnityCameraFollow(lon, lat, state.currentHeading);
+      // Camera Follow
+      if (state.cameraFollow) {
+        applyUnityCameraFollow(targetLon, targetLat, vehicleHeading);
+      }
+      break;
+    }
+    d += segDist;
   }
 }
 
 function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
-  let camBearing = map.getBearing();
+  const camBearing = map.getBearing();
   let targetCamBearing = vehicleHeading + (state.cameraBearingOffset || 0);
 
   if (state.cameraMode === 'overview') {

@@ -48,6 +48,23 @@ public sealed class RouteService : IDisposable
                 segment.Coordinates.Add([lon, lat]);
             }
 
+            // Ensure route starts and ends EXACTLY at the user's waypoints
+            if (segment.Coordinates.Count > 0)
+            {
+                var first = segment.Coordinates[0];
+                if (Math.Abs(first[0] - from.Longitude) > 0.00001 || Math.Abs(first[1] - from.Latitude) > 0.00001)
+                    segment.Coordinates.Insert(0, [from.Longitude, from.Latitude]);
+
+                var last = segment.Coordinates[^1];
+                if (Math.Abs(last[0] - to.Longitude) > 0.00001 || Math.Abs(last[1] - to.Latitude) > 0.00001)
+                    segment.Coordinates.Add([to.Longitude, to.Latitude]);
+            }
+            else
+            {
+                segment.Coordinates.Add([from.Longitude, from.Latitude]);
+                segment.Coordinates.Add([to.Longitude, to.Latitude]);
+            }
+
             return segment;
         }
         catch

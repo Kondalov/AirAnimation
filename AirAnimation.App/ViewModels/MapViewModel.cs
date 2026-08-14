@@ -22,8 +22,8 @@ public sealed partial class MapViewModel : ObservableObject
 
     public void AttachWebView(WebView2 wv) => _bridge.Attach(wv);
 
-    public Task SetTransportAsync(string svgContent, double size = 64) =>
-        _bridge.SetTransportAsync(svgContent, size);
+    public Task SetTransportAsync(string svgContent, double size, double speedKmh) =>
+        _bridge.SetTransportAsync(svgContent, size, speedKmh);
 
     public Task SetTransportSizeAsync(double size) =>
         _bridge.SetTransportSizeAsync(size);
@@ -42,8 +42,8 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task RemoveWaypointAsync(string id) => _bridge.RemoveWaypointAsync(id);
 
-    public Task PlayAsync(double speed, bool follow, double pitch, string mode = "follow", double zoom = 7.5, double bearingOffset = 0) =>
-        _bridge.PlayAnimationAsync(speed, follow, pitch, mode, zoom, bearingOffset);
+    public Task PlayAsync(double speed, bool follow, double pitch, string mode = "follow", double zoom = 7.5, double bearingOffset = 0, bool globeIntro = false) =>
+        _bridge.PlayAnimationAsync(speed, follow, pitch, mode, zoom, bearingOffset, globeIntro);
 
     public Task PauseAsync() => _bridge.PauseAnimationAsync();
 
@@ -61,6 +61,8 @@ public sealed partial class MapViewModel : ObservableObject
         _bridge.SetOrientationSettingsAsync(mode, angleOffset, altitude, banking);
 
     public Task SeekAsync(double progress) => _bridge.SeekAnimationAsync(progress);
+
+    public Task SetHudVisibilityAsync(bool visible) => _bridge.SetHudVisibilityAsync(visible);
 
     public Task CapturePreviewAsync(Stream stream) => _bridge.CapturePreviewAsync(stream);
 

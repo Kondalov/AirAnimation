@@ -18,6 +18,7 @@ public sealed partial class ExportViewModel : ObservableObject
     [ObservableProperty] private VideoQuality selectedQuality = VideoQuality.HD1080;
     [ObservableProperty] private int fps = 30;
     [ObservableProperty] private int videoDurationSeconds = 12; // 12 seconds like TravelBoast
+    [ObservableProperty] private bool includeHud = false;
     [ObservableProperty] private bool isExporting;
     [ObservableProperty] private double exportProgress;
     [ObservableProperty] private string exportStatus = string.Empty;
@@ -76,6 +77,9 @@ public sealed partial class ExportViewModel : ObservableObject
         try
         {
             int totalFrames = Math.Max(30, VideoDurationSeconds * Fps);
+
+            if (_mapVm != null)
+                await _mapVm.SetHudVisibilityAsync(IncludeHud);
 
             // Step 1: Deterministic Frame Capture
             for (int i = 0; i < totalFrames; i++)
