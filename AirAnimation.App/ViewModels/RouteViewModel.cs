@@ -141,19 +141,37 @@ public sealed partial class RouteViewModel : ObservableObject
         return result;
     }
 
+    [ObservableProperty] private bool isFlightMode;
+
+    partial void OnIsFlightModeChanged(bool value)
+    {
+        if (Waypoints.Count >= 2)
+            _ = RefreshSegmentsAsync();
+    }
+
+    [RelayCommand]
     private async Task RefreshSegmentsAsync()
     {
-        if (Waypoints.Count < 2) return;
+        if (Waypoints.Count < 2)
+        {
+            Segments = [];
+            TotalDistanceKm = 0;
+            RouteUpdated?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         IsRouting = true;
         try
         {
             var segments = new List<RouteSegment>();
             double totalDist = 0;
+            string profile = IsFlightMode ? "flight" : "driving";
+
             for (int i = 0; i < Waypoints.Count - 1; i++)
             {
                 var from = new Waypoint { Latitude = Waypoints[i].Lat, Longitude = Waypoints[i].Lon, Id = Guid.Parse(Waypoints[i].Id) };
                 var to   = new Waypoint { Latitude = Waypoints[i+1].Lat, Longitude = Waypoints[i+1].Lon, Id = Guid.Parse(Waypoints[i+1].Id) };
-                var seg  = await _routeService.GetSegmentAsync(from, to, "driving");
+                var seg  = await _routeService.GetSegmentAsync(from, to, profile);
                 segments.Add(seg);
                 totalDist += seg.DistanceMeters;
             }

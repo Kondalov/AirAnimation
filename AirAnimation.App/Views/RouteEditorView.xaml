@@ -60,7 +60,11 @@
                 <TextBlock Text="Название маршрута" FontSize="11"
                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                 <TextBox Text="{Binding RouteName, UpdateSourceTrigger=PropertyChanged}"
-                         Margin="0,0,0,12"/>
+                         Margin="0,0,0,8"/>
+
+                <CheckBox Content="Режим полёта (по прямой)"
+                          IsChecked="{Binding IsFlightMode}"
+                          Margin="0,0,0,12"/>
 
                 <TextBlock Text="ТОЧКИ" Style="{StaticResource SectionHeader}"/>
                 <TextBlock Text="Нажмите на карту для добавления точек маршрута"

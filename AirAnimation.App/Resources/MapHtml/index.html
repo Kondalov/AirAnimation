@@ -399,9 +399,20 @@ function updateLayerStyles() {
 window.bridge = {
   addWaypoint({ id, lat, lon, label }) {
     const idx = state.waypoints.length;
+    
+    // Foolproof centering: 0x0 wrapper to bypass MapLibre's bounding box measurements
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    wrapper.style.width = '0px';
+    wrapper.style.height = '0px';
+
     const el = document.createElement('div');
     el.className = 'waypoint-badge' + (idx === 0 ? ' start' : '');
     el.innerHTML = idx === 0 ? '🛫' : `<span>${idx + 1}</span>`;
+    // Center the 36x36 badge perfectly on the 0,0 wrapper
+    el.style.position = 'absolute';
+    el.style.left = '-18px';
+    el.style.top = '-18px';
     
     if (label) {
       const lbl = document.createElement('div');
@@ -409,8 +420,10 @@ window.bridge = {
       lbl.textContent = label;
       el.appendChild(lbl);
     }
+    
+    wrapper.appendChild(el);
 
-    const marker = new maplibregl.Marker({ element: el, draggable: true })
+    const marker = new maplibregl.Marker({ element: wrapper, draggable: true })
       .setLngLat([lon, lat])
       .addTo(map);
 
@@ -520,6 +533,7 @@ window.bridge = {
     if (cameraBearingOffset !== undefined) state.cameraBearingOffset = cameraBearingOffset;
     
     state.animPlaying = true;
+    state.lastFrameTime = null;
     if (state.animProgress >= 1) state.animProgress = 0;
 
     if (state.showHud !== false) {
@@ -629,29 +643,40 @@ window.bridge = {
 //  MARKER & DOM HELPERS
 // ═══════════════════════════════════════════════════════════════
 function createTransportDOM() {
+  const sz = state.transportSize || 84;
   const wrapper = document.createElement('div');
+  // 0x0 wrapper guarantees MapLibre's bounding box calculation is always [0,0]
+  wrapper.style.position = 'relative';
+  wrapper.style.width = '0px';
+  wrapper.style.height = '0px';
+
   const inner = document.createElement('div');
   inner.className = 'transport-marker-container';
-  const sz = (state.transportSize || 84) + 'px';
-  wrapper.style.width = sz;
-  wrapper.style.height = sz;
-  inner.style.width = '100%';
-  inner.style.height = '100%';
+  
+  // Center exactly based on pixel size
+  inner.style.position = 'absolute';
+  inner.style.left = `-${sz / 2}px`;
+  inner.style.top = `-${sz / 2}px`;
+  inner.style.width = `${sz}px`;
+  inner.style.height = `${sz}px`;
   inner.style.transformStyle = 'preserve-3d';
-  inner.style.transition = 'transform 0.1s linear';
   inner.innerHTML = state.transportSvg || '';
+  
   wrapper.appendChild(inner);
   return wrapper;
 }
 
 function updateTransportMarkerDOM() {
-  const sz = (state.transportSize || 84) + 'px';
+  const sz = state.transportSize || 84;
   if (state.transportMarker) {
-    const el = state.transportMarker.getElement();
-    el.style.width = sz;
-    el.style.height = sz;
-    if (el.firstChild) {
-      el.firstChild.innerHTML = state.transportSvg || '';
+    const wrapper = state.transportMarker.getElement();
+    if (wrapper.firstChild) {
+      const inner = wrapper.firstChild;
+      inner.style.left = `-${sz / 2}px`;
+      inner.style.top = `-${sz / 2}px`;
+      inner.style.width = `${sz}px`;
+      inner.style.height = `${sz}px`;
+      inner.innerHTML = state.transportSvg || '';
     }
   }
 }
@@ -659,16 +684,26 @@ function updateTransportMarkerDOM() {
 function updateWaypointBadges() {
   const total = state.waypoints.length;
   state.waypoints.forEach((w, i) => {
-    const el = w.marker.getElement();
+    // w.marker.getElement() is the 0x0 wrapper. The firstChild is the .waypoint-badge
+    const el = w.marker.getElement().firstChild;
+    if (!el) return;
     el.classList.remove('start', 'end');
+    
+    // Preserve the label if it exists
+    const labelEl = el.querySelector('.label');
+    
     if (i === 0) {
       el.classList.add('start');
-      el.firstChild.textContent = '🛫';
+      el.innerHTML = '🛫';
     } else if (i === total - 1 && total > 1) {
       el.classList.add('end');
-      el.firstChild.textContent = '🏁';
+      el.innerHTML = '🏁';
     } else {
-      el.firstChild.textContent = (i + 1);
+      el.innerHTML = `<span>${i + 1}</span>`;
+    }
+    
+    if (labelEl) {
+      el.appendChild(labelEl);
     }
   });
 }
@@ -682,7 +717,14 @@ function runAnimation() {
   const dt = now - state.lastFrameTime;
   state.lastFrameTime = now;
 
-  const totalSec = ANIM_DURATION_BASE / Math.max(0.1, state.animSpeed);
+  // Real flight time in hours (Distance km / Speed km/h)
+  const speedKmh = state.transportSpeed || 100;
+  const realHours = (state.totalDist / 1000) / speedKmh;
+  const realSeconds = realHours * 3600;
+
+  // Total animation time = real time / speed multiplier
+  const totalSec = Math.max(1, realSeconds / Math.max(0.1, state.animSpeed));
+
   state.animProgress += (dt / 1000) / totalSec;
 
   if (state.animProgress >= 1) {
@@ -709,33 +751,56 @@ function runAnimation() {
 
 function placeTransportAtProgress(p) {
   if (state.routeCoords.length < 2) return;
-  const targetDist = state.totalDist * p;
-  let d = 0, i = 0;
-  for (i = 0; i < state.routeCoords.length - 1; i++) {
-    const c1 = state.routeCoords[i];
-    const c2 = state.routeCoords[i + 1];
-    const segDist = turf.distance(turf.point(c1), turf.point(c2), { units: 'meters' });
-    if (d + segDist >= targetDist || i === state.routeCoords.length - 2) {
-      const ratio = segDist === 0 ? 0 : (targetDist - d) / segDist;
-      const targetLon = c1[0] + (c2[0] - c1[0]) * ratio;
-      const targetLat = c1[1] + (c2[1] - c1[1]) * ratio;
+  let targetLon, targetLat, ratio, vehicleHeading;
 
-      if (!state.transportMarker) {
-        state.transportMarker = new maplibregl.Marker({ element: createTransportDOM() })
-          .setLngLat([targetLon, targetLat])
-          .addTo(map);
-      } else {
-        state.transportMarker.setLngLat([targetLon, targetLat]);
+  if (p >= 1) {
+    targetLon = state.routeCoords[state.routeCoords.length - 1][0];
+    targetLat = state.routeCoords[state.routeCoords.length - 1][1];
+    if (state.routeCoords.length >= 2) {
+      const c1 = state.routeCoords[state.routeCoords.length - 2];
+      const c2 = state.routeCoords[state.routeCoords.length - 1];
+      vehicleHeading = calcBearing(c1[1], c1[0], c2[1], c2[0]);
+    } else {
+      vehicleHeading = state.currentHeading;
+    }
+  } else if (p <= 0) {
+    targetLon = state.routeCoords[0][0];
+    targetLat = state.routeCoords[0][1];
+    const c1 = state.routeCoords[0];
+    const c2 = state.routeCoords[1];
+    vehicleHeading = calcBearing(c1[1], c1[0], c2[1], c2[0]);
+  } else {
+    const targetDist = state.totalDist * p;
+    let d = 0;
+    for (let i = 0; i < state.routeCoords.length - 1; i++) {
+      const c1 = state.routeCoords[i];
+      const c2 = state.routeCoords[i + 1];
+      const segDist = turf.distance(turf.point(c1), turf.point(c2), { units: 'meters' });
+      if (d + segDist >= targetDist || i === state.routeCoords.length - 2) {
+        ratio = segDist === 0 ? 0 : (targetDist - d) / segDist;
+        ratio = Math.max(0, Math.min(1, ratio));
+        targetLon = c1[0] + (c2[0] - c1[0]) * ratio;
+        targetLat = c1[1] + (c2[1] - c1[1]) * ratio;
+        vehicleHeading = segDist > 0 ? calcBearing(c1[1], c1[0], c2[1], c2[0]) : state.currentHeading;
+        break;
       }
+      d += segDist;
+    }
+  }
 
-      // Calculate instantaneous heading
-      let vehicleHeading = 0;
-      if (p < 1 && segDist > 0) {
-        vehicleHeading = calcBearing(c1[1], c1[0], c2[1], c2[0]);
-      } else {
-        vehicleHeading = state.currentHeading;
-      }
-      state.currentHeading = vehicleHeading;
+  if (!state.transportMarker) {
+    state.transportMarker = new maplibregl.Marker({ 
+      element: createTransportDOM(),
+      rotationAlignment: 'map'
+    })
+      .setLngLat([targetLon, targetLat])
+      .addTo(map);
+  } else {
+    state.transportMarker.setLngLat([targetLon, targetLat]);
+  }
+
+  // Calculate instantaneous heading
+  state.currentHeading = vehicleHeading;
 
       // 3D Banking Physics
       if (state.enableBanking) {
@@ -760,23 +825,19 @@ function placeTransportAtProgress(p) {
          effectiveAngle = (vehicleHeading + state.modelAngleOffset) % 360;
       }
 
-      // Apply true heading rotation
+      // Apply true heading rotation to the wrapper (MapLibre marker container)
       state.transportMarker.setRotation(effectiveAngle);
 
       // Apply banking tilt to inner container
-      const el = state.transportMarker.getElement();
-      if (el && el.firstChild) {
-        el.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
+      const wrapper = state.transportMarker.getElement();
+      if (wrapper && wrapper.firstChild) {
+        wrapper.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
       }
 
       // Camera Follow
       if (state.cameraFollow) {
         applyUnityCameraFollow(targetLon, targetLat, vehicleHeading);
       }
-      break;
-    }
-    d += segDist;
-  }
 }
 
 function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
@@ -817,9 +878,33 @@ function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
 }
 
 function updateTrail(p) {
-  if (!state.routeCoords.length) return;
-  const end = Math.floor(p * state.routeCoords.length);
-  const trailCoords = state.routeCoords.slice(0, end + 1);
+  if (!state.routeCoords || state.routeCoords.length < 2) return;
+  
+  let trailCoords = [];
+  if (p >= 1) {
+    trailCoords = [...state.routeCoords];
+  } else if (p <= 0) {
+    trailCoords = [state.routeCoords[0]];
+  } else {
+    const targetDist = state.totalDist * p;
+    let d = 0;
+    for (let i = 0; i < state.routeCoords.length - 1; i++) {
+      const c1 = state.routeCoords[i];
+      const c2 = state.routeCoords[i + 1];
+      const segDist = turf.distance(turf.point(c1), turf.point(c2), { units: 'meters' });
+      if (d + segDist >= targetDist || i === state.routeCoords.length - 2) {
+        const ratio = segDist === 0 ? 0 : (targetDist - d) / segDist;
+        const clampedRatio = Math.max(0, Math.min(1, ratio));
+        const targetLon = c1[0] + (c2[0] - c1[0]) * clampedRatio;
+        const targetLat = c1[1] + (c2[1] - c1[1]) * clampedRatio;
+        trailCoords = state.routeCoords.slice(0, i + 1);
+        trailCoords.push([targetLon, targetLat]);
+        break;
+      }
+      d += segDist;
+    }
+  }
+
   map.getSource('trail')?.setData({
     type: 'Feature',
     geometry: { type: 'LineString', coordinates: trailCoords }
@@ -829,12 +914,23 @@ function updateTrail(p) {
 function updateHud(p) {
   const distKm = (state.totalDist * p / 1000).toFixed(1);
   document.getElementById('hud-dist').textContent = distKm + ' км';
-  const totalSec = ANIM_DURATION_BASE / Math.max(0.1, state.animSpeed);
-  const elapsed = Math.round(totalSec * p);
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  document.getElementById('hud-time').textContent =
-    String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  
+  const speedKmh = state.transportSpeed || 100;
+  const realHours = (state.totalDist / 1000) / speedKmh;
+  const realSeconds = realHours * 3600;
+  
+  // Show virtual flight time in the HUD
+  const virtualElapsed = Math.round(realSeconds * p);
+  const h = Math.floor(virtualElapsed / 3600);
+  const m = Math.floor((virtualElapsed % 3600) / 60);
+  
+  if (h > 0) {
+    document.getElementById('hud-time').textContent =
+      String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  } else {
+    document.getElementById('hud-time').textContent =
+      String(m).padStart(2,'0') + ':' + String(virtualElapsed % 60).padStart(2,'0');
+  }
 }
 
 function calcBearing(lat1, lon1, lat2, lon2) {
@@ -849,15 +945,7 @@ function calcBearing(lat1, lon1, lat2, lon2) {
 function calcTotalDist(coords) {
   let d = 0;
   for (let i = 1; i < coords.length; i++) {
-    const [lo1, la1] = coords[i-1];
-    const [lo2, la2] = coords[i];
-    const R = 6371000;
-    const φ1 = la1 * Math.PI / 180;
-    const φ2 = la2 * Math.PI / 180;
-    const dφ = (la2 - la1) * Math.PI / 180;
-    const dλ = (lo2 - lo1) * Math.PI / 180;
-    const a = Math.sin(dφ/2)**2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ/2)**2;
-    d += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    d += turf.distance(turf.point(coords[i-1]), turf.point(coords[i]), { units: 'meters' });
   }
   return d;
 }
