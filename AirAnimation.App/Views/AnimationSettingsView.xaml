@@ -155,6 +155,19 @@
                 </StackPanel>
             </Border>
 
+            <!-- Map Style Card -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="🗺 Стиль карты" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8"/>
+                    <UniformGrid Columns="2">
+                        <Button Content="Темная 3D" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="dark" Click="MapStyle_Click"/>
+                        <Button Content="Светлая" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="light" Click="MapStyle_Click"/>
+                        <Button Content="Спутник" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="satellite" Click="MapStyle_Click"/>
+                        <Button Content="Мультяшная" Style="{StaticResource GhostBtn}" FontSize="11" Padding="4" Margin="2" Tag="cartoon" Click="MapStyle_Click"/>
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+
             <!-- Overlays Card -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>

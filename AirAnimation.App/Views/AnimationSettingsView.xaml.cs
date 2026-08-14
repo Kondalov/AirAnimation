@@ -49,4 +49,12 @@ public partial class AnimationSettingsView : UserControl
             vm.TrailStyle = style;
         }
     }
+
+    private void MapStyle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && DataContext is AnimationViewModel vm && btn.Tag is string style)
+        {
+            vm.MapStyle = style;
+        }
+    }
 }

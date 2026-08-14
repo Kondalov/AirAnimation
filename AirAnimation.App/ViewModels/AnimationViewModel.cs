@@ -23,6 +23,9 @@ public sealed partial class AnimationViewModel : ObservableObject
     // Trail Style: 'redDashed', 'whiteDashed', 'neon', 'solid'
     [ObservableProperty] private string trailStyle = "redDashed";
 
+    // Map Style: 'dark', 'light', 'satellite', 'cartoon'
+    [ObservableProperty] private string mapStyle = "dark";
+
     [ObservableProperty] private bool showTrail = true;
     [ObservableProperty] private bool showCityLabels = true;
     [ObservableProperty] private bool showCountryFlags = true;
@@ -34,6 +37,7 @@ public sealed partial class AnimationViewModel : ObservableObject
     public event EventHandler<CameraSettingsEventArgs>? CameraChanged;
     public event EventHandler<RouteSettingsEventArgs>? RouteSettingsChanged;
     public event EventHandler<OrientationSettingsEventArgs>? OrientationSettingsChanged;
+    public event EventHandler<string>? MapStyleChanged;
 
     public string SpeedLabel => $"{SpeedMultiplier:F1}×";
 
@@ -70,6 +74,8 @@ public sealed partial class AnimationViewModel : ObservableObject
 
     partial void OnRouteDrawModeChanged(string value) => RaiseRouteSettingsUpdate();
     partial void OnTrailStyleChanged(string value) => RaiseRouteSettingsUpdate();
+    
+    partial void OnMapStyleChanged(string value) => MapStyleChanged?.Invoke(this, value);
 
     partial void OnTotalDistanceKmChanged(double value) =>
         OnPropertyChanged(nameof(DistanceLabel));

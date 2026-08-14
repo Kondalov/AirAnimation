@@ -47,6 +47,10 @@ public partial class MainWindow : Window
             vm.AnimationViewModel.OrientationSettingsChanged += async (_, o) =>
                 await vm.MapViewModel.SetOrientationSettingsAsync(o.Mode, o.AngleOffset, o.Altitude, o.Banking);
 
+            // Map Style update
+            vm.AnimationViewModel.MapStyleChanged += async (_, style) =>
+                await vm.MapViewModel.SetMapStyleAsync(style);
+
             // Animation progress & completion → AnimationViewModel
             vm.MapViewModel.Bridge.AnimationProgressChanged += (_, p) =>
             {
