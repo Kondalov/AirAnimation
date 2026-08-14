@@ -1,0 +1,145 @@
+<UserControl x:Class="AirAnimation.App.Views.TransportPickerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:AirAnimation.App.Models"
+             Background="Transparent">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header: Selected Transport Summary -->
+        <Border Grid.Row="0" Margin="12,10,12,4"
+                Background="{StaticResource BgCardBrush}"
+                BorderBrush="{StaticResource BorderBrush_}"
+                BorderThickness="1" CornerRadius="10" Padding="12,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="46" Height="46" CornerRadius="8"
+                        Background="{StaticResource BgDeepBrush}" Margin="0,0,12,0"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SelectedTransport.Emoji}" FontSize="26"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="ВЫБРАННЫЙ ТРАНСПОРТ" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding SelectedTransport.Name}" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                        <Run Text="{Binding SelectedTransport.Category}"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding SelectedTransport.DefaultSpeed, StringFormat={}{0:F0} км/ч}"/>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Transport Size Control -->
+        <Border Grid.Row="1" Margin="12,4,12,6"
+                Background="{StaticResource BgCardBrush}"
+                BorderBrush="{StaticResource BorderBrush_}"
+                BorderThickness="1" CornerRadius="10" Padding="12,8">
+            <StackPanel>
+                <Grid Margin="0,0,0,6">
+                    <TextBlock Text="📐 Размер на карте" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock HorizontalAlignment="Right" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}">
+                        <Run Text="{Binding TransportSize, StringFormat={}{0:F0} px, Mode=OneWay}"/>
+                    </TextBlock>
+                </Grid>
+                <Slider Minimum="28" Maximum="160"
+                        Value="{Binding TransportSize, Mode=TwoWay}"
+                        SmallChange="4" LargeChange="16"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Search Bar -->
+        <Border Grid.Row="2" Margin="12,2,12,6">
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Tag="🔍 Поиск транспорта..."/>
+        </Border>
+
+        <!-- Category Filter Chips ListBox -->
+        <Border Grid.Row="3" Margin="12,2,12,6">
+            <ListBox ItemsSource="{Binding Categories}"
+                     SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="chipBorder" CornerRadius="14" Padding="12,5" Margin="2,0"
+                                Background="{StaticResource BgCardBrush}"
+                                BorderBrush="{StaticResource BorderBrush_}" BorderThickness="1"
+                                Cursor="Hand">
+                            <TextBlock x:Name="chipText" Text="{Binding}" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter TargetName="chipBorder" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="chipBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="chipText" Property="Foreground" Value="White"/>
+                                <Setter TargetName="chipText" Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- Transport Grid ListBox -->
+        <ListBox Grid.Row="4" Margin="8,0,8,8"
+                 ItemsSource="{Binding FilteredTransports}"
+                 SelectedItem="{Binding SelectedTransport, Mode=TwoWay}"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type models:TransportModel}">
+                    <Border x:Name="cardBorder" Width="82" Height="86" Margin="4"
+                            CornerRadius="10" Padding="6"
+                            Background="{StaticResource BgCardBrush}"
+                            BorderBrush="{StaticResource BorderBrush_}"
+                            BorderThickness="1.5" Cursor="Hand">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Emoji}" FontSize="28"
+                                       HorizontalAlignment="Center" Margin="0,2,0,4"/>
+                            <TextBlock Text="{Binding Name}" FontSize="9"
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="72"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding Category}" FontSize="8"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                            <Setter TargetName="cardBorder" Property="Background" Value="{StaticResource BgCardSelectedBrush}"/>
+                            <Setter TargetName="cardBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>

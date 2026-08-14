@@ -1,0 +1,5 @@
+ПОМЕСТИТЕ СЮДА ffmpeg.exe
+
+Скачать: https://ffmpeg.org/download.html → Windows builds (BtbN или gyan.dev)
+
+Нужен только ffmpeg.exe — остальные файлы не нужны.

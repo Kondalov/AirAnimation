@@ -1,0 +1,73 @@
+using System.Windows;
+using AirAnimation.App.ViewModels;
+
+namespace AirAnimation.App.Views;
+
+public partial class MainWindow : Window
+{
+    public MainWindow()
+    {
+        InitializeComponent();
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        if (DataContext is MainViewModel vm)
+        {
+            // RouteViewModel → add/remove waypoints on map
+            vm.RouteViewModel.WaypointAdded += async (_, args) =>
+                await vm.MapViewModel.AddWaypointAsync(args.id, args.lat, args.lon, args.label);
+
+            vm.RouteViewModel.WaypointRemoved += async (_, id) =>
+                await vm.MapViewModel.RemoveWaypointAsync(id);
+
+            // MapView click → RouteViewModel
+            vm.MapViewModel.Bridge.MapClicked += async (_, args) =>
+                await vm.RouteViewModel.AddWaypointFromMapAsync(args.Lat, args.Lon);
+
+            // Map drag → update position
+            vm.MapViewModel.Bridge.WaypointMoved += (_, args) =>
+                vm.RouteViewModel.UpdateWaypointPosition(args.Id, args.Lat, args.Lon);
+
+            // Real-time animation speed update
+            vm.AnimationViewModel.SpeedChanged += async (_, speed) =>
+                await vm.MapViewModel.SetSpeedAsync(speed);
+
+            // Real-time camera 3D settings update
+            vm.AnimationViewModel.CameraChanged += async (_, cam) =>
+                await vm.MapViewModel.SetCameraSettingsAsync(cam.Follow, cam.Pitch, cam.Mode, cam.Zoom, cam.BearingOffset);
+
+            // Real-time route drawing mode & style update
+            vm.AnimationViewModel.RouteSettingsChanged += async (_, r) =>
+                await vm.MapViewModel.SetRouteSettingsAsync(r.DrawMode, r.TrailStyle);
+
+            // Real-time 3D flight orientation update (Heading, Offset, Altitude, Banking)
+            vm.AnimationViewModel.OrientationSettingsChanged += async (_, o) =>
+                await vm.MapViewModel.SetOrientationSettingsAsync(o.Mode, o.AngleOffset, o.Altitude, o.Banking);
+
+            // Animation progress & completion → AnimationViewModel
+            vm.MapViewModel.Bridge.AnimationProgressChanged += (_, p) =>
+            {
+                vm.AnimationViewModel.Progress = p;
+                if (p >= 1.0)
+                {
+                    vm.AnimationViewModel.IsPlaying = false;
+                }
+            };
+
+            vm.TransportViewModel.TransportSizeChanged += async (_, sz) =>
+                await vm.MapViewModel.SetTransportSizeAsync(sz);
+
+            vm.MapViewModel.Bridge.MapReady += (_, _) =>
+            {
+                vm.MapViewModel.OnMapReady();
+                if (vm.TransportViewModel.SelectedTransport is { } t)
+                    _ = vm.MapViewModel.SetTransportAsync(t.SvgIcon, vm.TransportViewModel.TransportSize);
+                else
+                    vm.TransportViewModel.SelectTransport("airliner");
+            };
+        }
+    }
+}

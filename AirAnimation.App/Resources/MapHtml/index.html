@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AirAnimation 3D Map Engine</title>
+<link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet"/>
+<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body, #map { width:100%; height:100%; background:#0b0e14; overflow:hidden; }
+  
+  /* TravelBoast Signature Waypoint Markers */
+  .waypoint-badge {
+    width:36px; height:36px;
+    border-radius:50%;
+    background:#FFB800;
+    border:3px solid #FFFFFF;
+    box-shadow:0 6px 16px rgba(0,0,0,0.4), 0 0 12px rgba(255,184,0,0.6);
+    cursor:grab;
+    display:flex; align-items:center; justify-content:center;
+    color:#1E293B; font-weight:800; font-size:14px; font-family:Segoe UI, -apple-system, sans-serif;
+    transition:transform .15s ease-out;
+    position:relative;
+  }
+  .waypoint-badge:hover { transform:scale(1.25); z-index:50; }
+  .waypoint-badge.start { background:#2ECC71; color:#fff; box-shadow:0 6px 16px rgba(46,204,113,.6); }
+  .waypoint-badge.end   { background:#E74C3C; color:#fff; box-shadow:0 6px 16px rgba(231,76,60,.6); }
+  .waypoint-badge .label {
+    position:absolute; top:-34px; left:50%; transform:translateX(-50%);
+    background:rgba(15,23,42,0.9); color:#fff;
+    padding:4px 10px; border-radius:8px; font-size:11px; font-weight:700; white-space:nowrap;
+    pointer-events:none; backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:0 4px 12px rgba(0,0,0,.5);
+  }
+  
+  /* 3D Transport Marker Container */
+  .transport-marker-container {
+    position:relative;
+    width:100%; height:100%;
+    pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+    overflow:visible;
+    transform-style:preserve-3d;
+  }
+  .transport-marker-container svg {
+    width:100%; height:100%;
+    display:block;
+    overflow:visible;
+  }
+  
+  /* HUD overlay */
+  #hud {
+    position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; gap:14px; pointer-events:none; z-index:10;
+  }
+  .hud-card {
+    background:rgba(15,23,42,0.88); color:#fff;
+    padding:8px 18px; border-radius:12px; font-family:Segoe UI, sans-serif;
+    font-size:13px; font-weight:600;
+    border:1px solid rgba(255,255,255,0.15);
+    backdrop-filter:blur(12px);
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    display:flex; align-items:center; gap:8px;
+  }
+  .hud-card .icon { font-size:16px; }
+  .hud-card .val  { color:#4F6BFF; font-weight:700; }
+  
+  /* Loading screen */
+  #loader {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:#0b0e14; z-index:100; flex-direction:column; gap:16px;
+  }
+  .spinner {
+    width:48px; height:48px; border:4px solid rgba(79,107,255,.2);
+    border-top-color:#4F6BFF; border-radius:50%; animation:spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #loader p { color:#9aa8c0; font-family:Segoe UI, sans-serif; font-size:13px; }
+</style>
+</head>
+<body>
+<div id="loader">
+  <div class="spinner"></div>
+  <p>Загрузка 3D карты AirAnimation...</p>
+</div>
+<div id="map"></div>
+<div id="hud" style="display:none">
+  <div class="hud-card">
+    <span class="icon">📍</span>
+    <span>Дистанция:</span>
+    <span class="val" id="hud-dist">0 км</span>
+  </div>
+  <div class="hud-card">
+    <span class="icon">⏱</span>
+    <span>Время:</span>
+    <span class="val" id="hud-time">00:00</span>
+  </div>
+  <div class="hud-card">
+    <span class="icon">⚡</span>
+    <span>Скорость:</span>
+    <span class="val" id="hud-speed">1.0×</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  MAP CONFIGURATION
+// ═══════════════════════════════════════════════════════════════
+const DARK_STYLE = {
+  version: 8,
+  name: 'AirAnimation Dark 3D',
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19
+    }
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#0b0e14' } },
+    { id: 'tiles', type: 'raster', source: 'osm',
+      paint: { 'raster-opacity': 0.85, 'raster-brightness-min': 0, 'raster-saturation': -0.35, 'raster-contrast': 0.15 } }
+  ]
+};
+
+const SATELLITE_STYLE = {
+  version: 8,
+  sources: {
+    sat: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: '© Esri',
+      maxzoom: 19
+    }
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#000' } },
+    { id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 } }
+  ]
+};
+
+const LIGHT_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19
+    }
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#f8f8f8' } },
+    { id: 'tiles', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1 } }
+  ]
+};
+
+const STYLES = {
+  dark: DARK_STYLE,
+  streets: LIGHT_STYLE,
+  light: LIGHT_STYLE,
+  satellite: SATELLITE_STYLE,
+  outdoors: DARK_STYLE,
+};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: DARK_STYLE,
+  center: [37.62, 55.75],
+  zoom: 5,
+  pitch: 45,
+  bearing: 0,
+  attributionControl: false,
+  antialias: true,
+  maxPitch: 85
+});
+
+map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+const state = {
+  waypoints: [],           // [{id, lat, lon, label, marker}]
+  routeCoords: [],         // [[lon, lat], ...]
+  transportSvg: '',
+  transportSize: 84,       // size in px
+  transportMarker: null,
+  
+  // Coordinates & Motion
+  currentLon: 37.62,
+  currentLat: 55.75,
+  currentHeading: 0,
+  currentBankRoll: 0,      // Aircraft roll/bank angle on turns
+  
+  // Flight Orientation Settings (User Selectable)
+  orientationMode: 'forward', // 'forward' (0°), 'isometric' (45°), 'side' (90°), 'custom'
+  modelAngleOffset: 0,        // degrees (-180..+180)
+  flightAltitude: 2500,       // meters above ground (300..10000)
+  enableBanking: true,
+  
+  // Animation
+  animFrame: null,
+  animProgress: 0,
+  animPlaying: false,
+  animSpeed: 1,            // Multiplier (up to 500x)
+  
+  // Route Drawing Settings (TravelBoast Trailing vs Full Route)
+  routeDrawMode: 'trailOnly', // 'trailOnly' (Строится позади транспорта) | 'fullRoute' (Полный маршрут)
+  trailStyle: 'redDashed',    // 'redDashed' | 'whiteDashed' | 'neon' | 'solid'
+  
+  // Unity-style Camera Controls
+  cameraMode: 'follow',       // 'follow' | 'overview' | 'isometric'
+  cameraFollow: true,
+  cameraPitch: 50,
+  cameraZoom: 7.5,
+  cameraBearingOffset: 0,
+  cameraDamping: 0.12,
+  
+  totalDist: 0,
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  MAP READY & LAYERS
+// ═══════════════════════════════════════════════════════════════
+map.on('load', () => {
+  document.getElementById('loader').style.display = 'none';
+  rebuildLayers();
+
+  map.on('click', (e) => {
+    if (state.animPlaying) return;
+    postMessage({
+      type: 'mapClick',
+      lat: e.lngLat.lat,
+      lon: e.lngLat.lng
+    });
+  });
+
+  postMessage({ type: 'mapReady' });
+});
+
+function rebuildLayers() {
+  // 1. Full Route Preview Layer
+  if (!map.getSource('route')) {
+    map.addSource('route', {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: state.routeCoords } }
+    });
+    map.addLayer({
+      id: 'route-line-bg',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#000000',
+        'line-width': 7,
+        'line-opacity': 0.35,
+      },
+      layout: {
+        'visibility': state.routeDrawMode === 'fullRoute' ? 'visible' : 'none'
+      }
+    });
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#4F6BFF',
+        'line-width': 4,
+        'line-opacity': 0.85,
+        'line-dasharray': [2, 2]
+      },
+      layout: {
+        'visibility': state.routeDrawMode === 'fullRoute' ? 'visible' : 'none'
+      }
+    });
+  }
+
+  // 2. Trailing Route Layer (Draws behind the vehicle like TravelBoast)
+  if (!map.getSource('trail')) {
+    map.addSource('trail', {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
+    });
+
+    map.addLayer({
+      id: 'trail-shadow',
+      type: 'line',
+      source: 'trail',
+      paint: {
+        'line-color': '#000000',
+        'line-width': 10,
+        'line-opacity': 0.35,
+        'line-blur': 4
+      }
+    });
+
+    map.addLayer({
+      id: 'trail-line',
+      type: 'line',
+      source: 'trail',
+      paint: getTrailPaintProperties(),
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round'
+      }
+    });
+  }
+}
+
+function getTrailPaintProperties() {
+  switch (state.trailStyle) {
+    case 'whiteDashed':
+      return {
+        'line-color': '#FFFFFF',
+        'line-width': 7,
+        'line-opacity': 1.0,
+        'line-dasharray': [1.8, 1.4]
+      };
+    case 'neon':
+      return {
+        'line-color': '#00E5FF',
+        'line-width': 6,
+        'line-opacity': 1.0,
+        'line-blur': 1
+      };
+    case 'solid':
+      return {
+        'line-color': '#E11D48',
+        'line-width': 5,
+        'line-opacity': 1.0
+      };
+    case 'redDashed':
+    default:
+      // Iconic TravelBoast Red Dashed Trail
+      return {
+        'line-color': '#E11D48',
+        'line-width': 7,
+        'line-opacity': 1.0,
+        'line-dasharray': [1.8, 1.4]
+      };
+  }
+}
+
+function updateLayerStyles() {
+  if (map.getLayer('route-line')) {
+    const vis = state.routeDrawMode === 'fullRoute' ? 'visible' : 'none';
+    map.setLayoutProperty('route-line', 'visibility', vis);
+    map.setLayoutProperty('route-line-bg', 'visibility', vis);
+  }
+  if (map.getLayer('trail-line')) {
+    const props = getTrailPaintProperties();
+    for (const [key, val] of Object.entries(props)) {
+      map.setPaintProperty('trail-line', key, val);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BRIDGE API (C# → JS)
+// ═══════════════════════════════════════════════════════════════
+window.bridge = {
+  addWaypoint({ id, lat, lon, label }) {
+    const idx = state.waypoints.length;
+    const el = document.createElement('div');
+    el.className = 'waypoint-badge' + (idx === 0 ? ' start' : '');
+    el.innerHTML = idx === 0 ? '🛫' : `<span>${idx + 1}</span>`;
+    
+    if (label) {
+      const lbl = document.createElement('div');
+      lbl.className = 'label';
+      lbl.textContent = label;
+      el.appendChild(lbl);
+    }
+
+    const marker = new maplibregl.Marker({ element: el, draggable: true })
+      .setLngLat([lon, lat])
+      .addTo(map);
+
+    marker.on('dragend', () => {
+      const pos = marker.getLngLat();
+      postMessage({ type: 'waypointMoved', id, lat: pos.lat, lon: pos.lng });
+    });
+
+    state.waypoints.push({ id, lat, lon, label, marker });
+    updateWaypointBadges();
+  },
+
+  moveWaypoint({ id, lat, lon }) {
+    const wp = state.waypoints.find(w => w.id === id);
+    if (wp) { wp.lat = lat; wp.lon = lon; wp.marker.setLngLat([lon, lat]); }
+  },
+
+  removeWaypoint({ id }) {
+    const idx = state.waypoints.findIndex(w => w.id === id);
+    if (idx < 0) return;
+    state.waypoints[idx].marker.remove();
+    state.waypoints.splice(idx, 1);
+    updateWaypointBadges();
+  },
+
+  clearWaypoints() {
+    state.waypoints.forEach(w => w.marker.remove());
+    state.waypoints = [];
+  },
+
+  setRoute({ coordinates, color, width }) {
+    state.routeCoords = coordinates;
+    state.totalDist = calcTotalDist(coordinates);
+
+    if (map.getSource('route')) {
+      map.getSource('route').setData({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates }
+      });
+    }
+    if (map.getSource('trail')) {
+      map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    }
+
+    updateLayerStyles();
+
+    if (coordinates.length >= 2) {
+      // Place airplane PRECISELY at Start Waypoint (index 0)
+      placeTransportAtProgress(0);
+    }
+  },
+
+  clearRoute() {
+    state.routeCoords = [];
+    map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    state.transportMarker?.remove();
+    state.transportMarker = null;
+  },
+
+  setTransport({ svg, size }) {
+    state.transportSvg = svg;
+    if (size) state.transportSize = size;
+    updateTransportMarkerDOM();
+    if (state.routeCoords && state.routeCoords.length >= 2) {
+      placeTransportAtProgress(state.animProgress || 0);
+    }
+  },
+
+  setTransportSize({ size }) {
+    state.transportSize = size || 84;
+    updateTransportMarkerDOM();
+  },
+
+  setRouteSettings({ drawMode, trailStyle }) {
+    if (drawMode) state.routeDrawMode = drawMode;
+    if (trailStyle) state.trailStyle = trailStyle;
+    updateLayerStyles();
+  },
+
+  setOrientationSettings({ mode, angleOffset, altitude, banking }) {
+    if (mode !== undefined) state.orientationMode = mode;
+    if (angleOffset !== undefined) state.modelAngleOffset = angleOffset;
+    if (altitude !== undefined) state.flightAltitude = altitude;
+    if (banking !== undefined) state.enableBanking = banking;
+    
+    // Refresh vehicle rotation immediately
+    if (state.routeCoords && state.routeCoords.length >= 2) {
+      placeTransportAtProgress(state.animProgress || 0);
+    }
+  },
+
+  setMapStyle({ styleUrl }) {
+    const key = styleUrl || 'dark';
+    const style = STYLES[key] || DARK_STYLE;
+    map.setStyle(style);
+    map.once('styledata', () => { rebuildLayers(); });
+  },
+
+  playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset }) {
+    if (state.routeCoords.length < 2) return;
+    state.animSpeed = speedMultiplier || 1;
+    state.cameraFollow = cameraFollow !== false;
+    if (cameraPitch !== undefined) state.cameraPitch = cameraPitch;
+    if (cameraMode !== undefined) state.cameraMode = cameraMode;
+    if (cameraZoom !== undefined) state.cameraZoom = cameraZoom;
+    if (cameraBearingOffset !== undefined) state.cameraBearingOffset = cameraBearingOffset;
+    
+    state.animPlaying = true;
+    if (state.animProgress >= 1) state.animProgress = 0;
+
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('hud-speed').textContent = state.animSpeed.toFixed(1) + '×';
+    runAnimation();
+  },
+
+  pauseAnimation() {
+    state.animPlaying = false;
+    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+  },
+
+  stopAnimation() {
+    state.animPlaying = false;
+    state.animProgress = 0;
+    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+    document.getElementById('hud').style.display = 'none';
+    placeTransportAtProgress(0);
+    map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    postMessage({ type: 'animationProgress', progress: 0 });
+  },
+
+  seekAnimation({ progress }) {
+    state.animProgress = Math.max(0, Math.min(1, progress));
+    placeTransportAtProgress(state.animProgress);
+    updateTrail(state.animProgress);
+    updateHud(state.animProgress);
+  },
+
+  setSpeed({ speedMultiplier }) {
+    state.animSpeed = speedMultiplier || 1;
+    document.getElementById('hud-speed').textContent = state.animSpeed.toFixed(1) + '×';
+  },
+
+  setCameraSettings({ cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset }) {
+    if (cameraFollow !== undefined) state.cameraFollow = cameraFollow;
+    if (cameraPitch !== undefined) {
+      state.cameraPitch = cameraPitch;
+      map.setPitch(cameraPitch);
+    }
+    if (cameraMode !== undefined) {
+      state.cameraMode = cameraMode;
+      if (cameraMode === 'overview') {
+        map.setPitch(0);
+        map.setBearing(0);
+      } else if (cameraMode === 'isometric') {
+        map.setPitch(55);
+        map.setBearing((state.currentHeading + 45) % 360);
+      }
+    }
+    if (cameraZoom !== undefined) {
+      state.cameraZoom = cameraZoom;
+      map.setZoom(cameraZoom);
+    }
+    if (cameraBearingOffset !== undefined) {
+      state.cameraBearingOffset = cameraBearingOffset;
+      if (state.transportMarker && !state.animPlaying) {
+        map.setBearing((state.currentHeading + cameraBearingOffset + 360) % 360);
+      }
+    }
+  },
+
+  fitBounds() {
+    const all = [
+      ...state.waypoints.map(w => [w.lon, w.lat]),
+      ...state.routeCoords
+    ];
+    if (all.length === 0) return;
+    const lons = all.map(c => c[0]);
+    const lats = all.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: 80, duration: 800 }
+    );
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  MARKER & DOM HELPERS
+// ═══════════════════════════════════════════════════════════════
+function createTransportDOM() {
+  const wrapper = document.createElement('div');
+  const inner = document.createElement('div');
+  inner.className = 'transport-marker-container';
+  const sz = (state.transportSize || 84) + 'px';
+  wrapper.style.width = sz;
+  wrapper.style.height = sz;
+  inner.style.width = '100%';
+  inner.style.height = '100%';
+  inner.style.transformStyle = 'preserve-3d';
+  inner.style.transition = 'transform 0.1s linear';
+  inner.innerHTML = state.transportSvg || defaultPlaneSvg();
+  wrapper.appendChild(inner);
+  return wrapper;
+}
+
+function updateTransportMarkerDOM() {
+  const sz = (state.transportSize || 84) + 'px';
+  if (state.transportMarker) {
+    const el = state.transportMarker.getElement();
+    el.style.width = sz;
+    el.style.height = sz;
+    if (el.firstChild) {
+      el.firstChild.innerHTML = state.transportSvg || defaultPlaneSvg();
+    }
+  }
+}
+
+function updateWaypointBadges() {
+  const total = state.waypoints.length;
+  state.waypoints.forEach((w, i) => {
+    const el = w.marker.getElement();
+    el.classList.remove('start', 'end');
+    if (i === 0) {
+      el.classList.add('start');
+      el.firstChild.textContent = '🛫';
+    } else if (i === total - 1 && total > 1) {
+      el.classList.add('end');
+      el.firstChild.textContent = '🏁';
+    } else {
+      el.firstChild.textContent = (i + 1);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════════
+let lastTs = null;
+const ANIM_DURATION_BASE = 40; // baseline seconds for 1x speed
+
+function runAnimation() {
+  if (!state.animPlaying) return;
+
+  const step = (ts) => {
+    if (!state.animPlaying) return;
+    if (lastTs === null) lastTs = ts;
+    const dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+
+    const totalPts = state.routeCoords.length;
+    const speed = state.animSpeed;
+    
+    // Smooth progress increment
+    state.animProgress += (dt * speed) / (ANIM_DURATION_BASE * Math.max(1, totalPts / 600));
+    if (state.animProgress > 1) state.animProgress = 1;
+
+    placeTransportAtProgress(state.animProgress, dt);
+    updateTrail(state.animProgress);
+    updateHud(state.animProgress);
+    postMessage({ type: 'animationProgress', progress: state.animProgress });
+
+    if (state.animProgress < 1) {
+      state.animFrame = requestAnimationFrame(step);
+    } else {
+      state.animPlaying = false;
+      lastTs = null;
+      postMessage({ type: 'animationFinished' });
+    }
+  };
+
+  lastTs = null;
+  state.animFrame = requestAnimationFrame(step);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EXACT POSITIONING & 3D FLIGHT PHYSICS ENGINE
+// ═══════════════════════════════════════════════════════════════
+function placeTransportAtProgress(p, dt = 0.016) {
+  if (state.routeCoords.length < 2) return;
+  const coords = state.routeCoords;
+  const numSegments = coords.length - 1;
+  const exactIndex = p * numSegments;
+  const idx = Math.min(Math.floor(exactIndex), numSegments - 1);
+  const t = exactIndex - idx;
+
+  const c0 = coords[idx];
+  const c1 = coords[Math.min(idx + 1, numSegments)];
+  
+  // Exact Geographic Coordinates (Starts accurately at c0[0] when p=0)
+  const lon = c0[0] + (c1[0] - c0[0]) * t;
+  const lat = c0[1] + (c1[1] - c0[1]) * t;
+  state.currentLon = lon;
+  state.currentLat = lat;
+
+  // Look-Ahead Target for Smooth Heading
+  const lookAheadIdx = Math.min(idx + Math.max(1, Math.floor(coords.length * 0.006)), numSegments);
+  const targetLon = coords[lookAheadIdx][0];
+  const targetLat = coords[lookAheadIdx][1];
+  
+  const rawBearing = calcBearing(lat, lon, targetLat, targetLon);
+
+  // Shortest angular difference
+  if (state.currentHeading === 0 && rawBearing !== 0) {
+    state.currentHeading = rawBearing;
+  }
+  let diffAngle = ((rawBearing - state.currentHeading + 540) % 360) - 180;
+  
+  // Dynamic Aircraft Roll / Banking on turns
+  if (state.enableBanking) {
+    const turnFactor = Math.max(-1, Math.min(1, diffAngle / 25));
+    const targetRoll = turnFactor * 28; // up to 28 degrees bank
+    state.currentBankRoll += (targetRoll - state.currentBankRoll) * Math.min(1, dt * 8);
+  } else {
+    state.currentBankRoll = 0;
+  }
+
+  // Smooth heading interpolation
+  state.currentHeading = (state.currentHeading + diffAngle * Math.min(1, dt * 12) + 360) % 360;
+
+  // Compute final angle with User Orientation Offset
+  let effectiveAngle = (state.currentHeading + (state.modelAngleOffset || 0) + 360) % 360;
+
+  // Create or Move Marker
+  if (!state.transportMarker) {
+    const el = createTransportDOM();
+    state.transportMarker = new maplibregl.Marker({
+      element: el,
+      anchor: 'center',
+      rotationAlignment: 'map',
+      pitchAlignment: 'map'
+    }).setLngLat([lon, lat]).addTo(map);
+  } else {
+    state.transportMarker.setLngLat([lon, lat]);
+  }
+
+  // Apply true heading rotation
+  state.transportMarker.setRotation(effectiveAngle);
+
+  // Apply banking tilt to inner container
+  const el = state.transportMarker.getElement();
+  if (el && el.firstChild) {
+    el.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
+  }
+
+  // Camera Follow
+  if (state.cameraFollow && state.animPlaying) {
+    applyUnityCameraFollow(lon, lat, state.currentHeading);
+  }
+}
+
+function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
+  let camBearing = map.getBearing();
+  let targetCamBearing = vehicleHeading + (state.cameraBearingOffset || 0);
+
+  if (state.cameraMode === 'overview') {
+    map.easeTo({
+      center: [targetLon, targetLat],
+      pitch: 0,
+      bearing: 0,
+      zoom: state.cameraZoom || 6,
+      duration: 60,
+      easing: t => t
+    });
+  } else if (state.cameraMode === 'isometric') {
+    map.easeTo({
+      center: [targetLon, targetLat],
+      pitch: state.cameraPitch || 55,
+      bearing: (vehicleHeading + 45) % 360,
+      zoom: state.cameraZoom || 7.5,
+      duration: 60,
+      easing: t => t
+    });
+  } else {
+    let diff = ((targetCamBearing - camBearing + 540) % 360) - 180;
+    let smoothCamBearing = (camBearing + diff * (state.cameraDamping || 0.12) + 360) % 360;
+
+    map.easeTo({
+      center: [targetLon, targetLat],
+      pitch: state.cameraPitch || 50,
+      bearing: smoothCamBearing,
+      zoom: state.cameraZoom || 7.5,
+      duration: 60,
+      easing: t => t
+    });
+  }
+}
+
+function updateTrail(p) {
+  if (!state.routeCoords.length) return;
+  const end = Math.floor(p * state.routeCoords.length);
+  const trailCoords = state.routeCoords.slice(0, end + 1);
+  map.getSource('trail')?.setData({
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: trailCoords }
+  });
+}
+
+function updateHud(p) {
+  const distKm = (state.totalDist * p / 1000).toFixed(1);
+  document.getElementById('hud-dist').textContent = distKm + ' км';
+  const totalSec = ANIM_DURATION_BASE / Math.max(0.1, state.animSpeed);
+  const elapsed = Math.round(totalSec * p);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  document.getElementById('hud-time').textContent =
+    String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function calcBearing(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function calcTotalDist(coords) {
+  let d = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [lo1, la1] = coords[i-1];
+    const [lo2, la2] = coords[i];
+    const R = 6371000;
+    const φ1 = la1 * Math.PI / 180;
+    const φ2 = la2 * Math.PI / 180;
+    const dφ = (la2 - la1) * Math.PI / 180;
+    const dλ = (lo2 - lo1) * Math.PI / 180;
+    const a = Math.sin(dφ/2)**2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ/2)**2;
+    d += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  return d;
+}
+
+function postMessage(data) {
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.postMessage(JSON.stringify(data));
+  }
+}
+
+function defaultPlaneSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M 60 14 C 68 14 73 30 72 58 C 71 86 66 106 60 110 C 54 106 49 86 48 58 C 47 30 52 14 60 14 Z" fill="#3B82F6" stroke="#0F172A" stroke-width="2.5"/><path d="M 60 44 L 110 58 L 102 70 L 60 56 L 18 70 L 10 58 Z" fill="#2563EB" stroke="#0F172A" stroke-width="2.5"/></svg>`;
+}
+</script>
+</body>
+</html>

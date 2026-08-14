@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+    <AssemblyTitle>AirAnimation</AssemblyTitle>
+    <AssemblyDescription>Travel Route Animator — TravelBoast analog for Windows 11</AssemblyDescription>
+    <Company>AirAnimation</Company>
+    <Version>1.0.0</Version>
+    <RootNamespace>AirAnimation.App</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="FFMpegCore" Version="5.4.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+
+  </ItemGroup>
+
+  <!-- Copy MapLibre HTML and FFmpeg to output -->
+  <ItemGroup>
+    <Content Include="Resources\MapHtml\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="ffmpeg\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- Embedded resource fallback for HTML -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\MapHtml\index.html"/>
+  </ItemGroup>
+
+</Project>

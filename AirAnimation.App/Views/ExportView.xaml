@@ -1,0 +1,103 @@
+<UserControl x:Class="AirAnimation.App.Views.ExportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:AirAnimation.App.Models"
+             Background="Transparent">
+    <ScrollViewer>
+        <StackPanel Margin="14,10">
+            <TextBlock Text="ЭКСПОРТ ВИДЕО" Style="{StaticResource SectionHeader}"/>
+
+            <!-- Format Preset Selection -->
+            <Border Style="{StaticResource Card}" Margin="0,4,0,12">
+                <StackPanel>
+                    <TextBlock Text="📱 Формат экспорта" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                              Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding PresetDescription}" FontSize="11"
+                               Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Video Duration (Like TravelBoast) -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="⏱ Длина видео" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="13">
+                            <Run Text="{Binding VideoDurationSeconds, Mode=OneWay}"/>
+                            <Run Text="сек."/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="3" Maximum="60"
+                            Value="{Binding VideoDurationSeconds, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            SmallChange="1" LargeChange="5"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Quality & FPS -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="🎬 Качество и частота кадров" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="Разрешение:" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        <ComboBox ItemsSource="{Binding Qualities}"
+                                  SelectedItem="{Binding SelectedQuality, Mode=TwoWay}"
+                                  HorizontalAlignment="Right" Width="140"/>
+                    </Grid>
+                    <Separator/>
+                    <Grid Margin="0,4,0,0">
+                        <TextBlock Text="Частота кадров (FPS):" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        <ComboBox ItemsSource="{Binding FpsOptions}"
+                                  SelectedItem="{Binding Fps, Mode=TwoWay}"
+                                  HorizontalAlignment="Right" Width="140"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Export button -->
+            <Button Content="📹 Экспортировать MP4"
+                    Style="{StaticResource SuccessBtn}"
+                    Command="{Binding ExportVideoCommand}"
+                    IsEnabled="{Binding IsExporting, Converter={StaticResource InvBoolToVis}}"
+                    Margin="0,4,0,12"
+                    FontSize="14" Padding="0,12"/>
+
+            <!-- Progress -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12"
+                    Visibility="{Binding IsExporting, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ExportStatus}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+                    <ProgressBar Value="{Binding ExportProgress}" Maximum="1"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Status after export -->
+            <TextBlock Text="{Binding ExportStatus}"
+                       FontSize="12"
+                       Foreground="{StaticResource SuccessBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12"
+                       Visibility="{Binding IsExporting, Converter={StaticResource InvBoolToVis}}"/>
+
+            <!-- FFmpeg status note -->
+            <Border Style="{StaticResource Card}"
+                    Background="#112ECC71" BorderBrush="{StaticResource SuccessBrush}">
+                <StackPanel>
+                    <TextBlock Text="✅ FFmpeg готов к работе"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource SuccessBrush}"
+                               FontSize="12" Margin="0,0,0,4"/>
+                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                        Модуль кодирования H.264 встроен в приложение. Видео сохраняется в формате MP4 высокого качества.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
