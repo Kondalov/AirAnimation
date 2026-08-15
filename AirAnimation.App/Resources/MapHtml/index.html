@@ -1172,7 +1172,14 @@ function placeTransportAtProgress(p) {
     state.transportMarker.setLngLat([targetLon, targetLat]);
   }
 
-  if (state.smoothAnimation && state.animPlaying) {
+  if (state.smoothAnimation && (state.animPlaying || state.exportMode)) {
+    // Force snap at the very beginning of the animation to avoid smoothing from a previous state
+    if (p <= 0) {
+      state.lastSmoothedHeading = vehicleHeading;
+      state.lastSmoothedLon = targetLon;
+      state.lastSmoothedLat = targetLat;
+    }
+    
     if (state.lastSmoothedHeading === undefined) state.lastSmoothedHeading = vehicleHeading;
     let turnDelta = vehicleHeading - state.lastSmoothedHeading;
     while (turnDelta > 180) turnDelta -= 360;
@@ -1245,36 +1252,42 @@ function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
   const camBearing = map.getBearing();
   let targetCamBearing = vehicleHeading + (state.cameraBearingOffset || 0);
 
+  let opts = {
+    center: [targetLon, targetLat]
+  };
+
   if (state.cameraMode === 'overview') {
-    map.easeTo({
-      center: [targetLon, targetLat],
-      pitch: 0,
-      bearing: 0,
-      zoom: state.cameraZoom || 6,
-      duration: 60,
-      easing: t => t
-    });
+    opts.pitch = 0;
+    opts.bearing = 0;
+    opts.zoom = state.cameraZoom || 6;
   } else if (state.cameraMode === 'isometric') {
-    map.easeTo({
-      center: [targetLon, targetLat],
-      pitch: state.cameraPitch || 55,
-      bearing: (vehicleHeading + 45) % 360,
-      zoom: state.cameraZoom || 7.5,
-      duration: 60,
-      easing: t => t
-    });
+    opts.pitch = state.cameraPitch || 55;
+    opts.bearing = (vehicleHeading + 45) % 360;
+    opts.zoom = state.cameraZoom || 7.5;
   } else {
     let diff = ((targetCamBearing - camBearing + 540) % 360) - 180;
-    let smoothCamBearing = (camBearing + diff * (state.cameraDamping || 0.12) + 360) % 360;
+    
+    // Time-based EMA for camera bearing (approx 130ms time constant matches 0.12 at 60fps)
+    const dt = state.lastFrameDt || 16.666;
+    let alphaCam = 1.0 - Math.exp(-dt / 130);
+    // Only smooth if we are playing or exporting (otherwise just snap)
+    if (!state.animPlaying && !state.exportMode) alphaCam = 1.0; 
+    
+    let smoothCamBearing = (camBearing + diff * alphaCam + 360) % 360;
 
-    map.easeTo({
-      center: [targetLon, targetLat],
-      pitch: state.cameraPitch || 50,
-      bearing: smoothCamBearing,
-      zoom: state.cameraZoom || 7.5,
-      duration: 60,
-      easing: t => t
-    });
+    opts.pitch = state.cameraPitch || 50;
+    opts.bearing = smoothCamBearing;
+    opts.zoom = state.cameraZoom || 7.5;
+  }
+
+  if (state.exportMode) {
+    // In export mode, we must snap instantly to the exact deterministic frame position
+    map.jumpTo(opts);
+  } else {
+    // In real-time, ease to smooth out frame deltas
+    opts.duration = 60;
+    opts.easing = t => t;
+    map.easeTo(opts);
   }
 }
 
