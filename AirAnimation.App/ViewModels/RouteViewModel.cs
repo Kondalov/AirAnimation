@@ -44,7 +44,7 @@ public sealed partial class RouteViewModel : ObservableObject
     public event EventHandler? BoundsRequested;
 
     // Raised to tell MapView to add/remove a marker
-    public event EventHandler<(string id, double lat, double lon, string? label)>? WaypointAdded;
+    public event EventHandler<(string id, double lat, double lon, string? label, int index)>? WaypointAdded;
     public event EventHandler<string>? WaypointRemoved;
 
     public RouteViewModel(RouteService routeService, GeocodingService geocodingService)
@@ -57,8 +57,27 @@ public sealed partial class RouteViewModel : ObservableObject
     {
         var item = new WaypointItemViewModel { Lat = lat, Lon = lon };
         Waypoints.Add(item);
-        WaypointAdded?.Invoke(this, (item.Id, lat, lon, item.Name));
+        WaypointAdded?.Invoke(this, (item.Id, lat, lon, item.Name, Waypoints.Count - 1));
 
+        if (Waypoints.Count >= 2)
+            await RefreshSegmentsAsync();
+    }
+
+    public async Task InsertWaypointFromMapAsync(double lat, double lon, int index)
+    {
+        var item = new WaypointItemViewModel { Lat = lat, Lon = lon };
+        if (index >= 0 && index < Waypoints.Count)
+        {
+            Waypoints.Insert(index, item);
+        }
+        else
+        {
+            Waypoints.Add(item);
+        }
+        
+        int insertIdx = Waypoints.IndexOf(item);
+        WaypointAdded?.Invoke(this, (item.Id, lat, lon, item.Name, insertIdx));
+        
         if (Waypoints.Count >= 2)
             await RefreshSegmentsAsync();
     }
@@ -122,7 +141,7 @@ public sealed partial class RouteViewModel : ObservableObject
                 Name = wp.Name
             };
             Waypoints.Add(item);
-            WaypointAdded?.Invoke(this, (item.Id, item.Lat, item.Lon, item.Name));
+            WaypointAdded?.Invoke(this, (item.Id, item.Lat, item.Lon, item.Name, Waypoints.Count - 1));
         }
         if (Waypoints.Count >= 2)
             await RefreshSegmentsAsync();
@@ -171,10 +190,10 @@ public sealed partial class RouteViewModel : ObservableObject
             var w2 = new WaypointItemViewModel { Lat = toResult.Value.Lat, Lon = toResult.Value.Lon, Name = toResult.Value.Name };
             
             Waypoints.Add(w1);
-            WaypointAdded?.Invoke(this, (w1.Id, w1.Lat, w1.Lon, w1.Name));
+            WaypointAdded?.Invoke(this, (w1.Id, w1.Lat, w1.Lon, w1.Name, 0));
             
             Waypoints.Add(w2);
-            WaypointAdded?.Invoke(this, (w2.Id, w2.Lat, w2.Lon, w2.Name));
+            WaypointAdded?.Invoke(this, (w2.Id, w2.Lat, w2.Lon, w2.Name, 1));
 
             await RefreshSegmentsAsync();
             BoundsRequested?.Invoke(this, EventArgs.Empty);

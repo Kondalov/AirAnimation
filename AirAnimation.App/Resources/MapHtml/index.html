@@ -276,6 +276,8 @@ const state = {
   totalDist: 0,
 };
 
+let tempMarker = null;
+
 // ═══════════════════════════════════════════════════════════════
 //  MAP READY & LAYERS
 // ═══════════════════════════════════════════════════════════════
@@ -285,10 +287,87 @@ map.on('load', () => {
 
   map.on('click', (e) => {
     if (state.animPlaying) return;
+
+    const features = map.queryRenderedFeatures(e.point, { layers: ['route-hitbox'] });
+    if (features.length > 0) return; // Handled by route-hitbox click listener
+
     postMessage({
       type: 'mapClick',
       lat: e.lngLat.lat,
       lon: e.lngLat.lng
+    });
+  });
+
+  map.on('mouseenter', 'route-hitbox', () => {
+    if (state.animPlaying || state.exportMode) return;
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'route-hitbox', () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  map.on('click', 'route-hitbox', (e) => {
+    if (state.animPlaying || state.exportMode) return;
+    if (tempMarker) tempMarker.remove();
+
+    const pt = turf.point([e.lngLat.lng, e.lngLat.lat]);
+    const line = turf.lineString(state.routeCoords);
+    const snapped = turf.nearestPointOnLine(line, pt);
+    
+    // Determine insertion index based on waypoints
+    // We project each waypoint onto the line to get its sequence
+    let insertIndex = state.waypoints.length;
+    if (state.waypoints.length > 2) {
+       const wpDistances = state.waypoints.map(w => {
+           const wp = turf.point([w.lon, w.lat]);
+           const snapWp = turf.nearestPointOnLine(line, wp);
+           return snapWp.properties.location; // distance along line
+       });
+       const newDist = snapped.properties.location;
+       for (let i = 1; i < wpDistances.length; i++) {
+          if (newDist >= wpDistances[i-1] && newDist <= wpDistances[i]) {
+             insertIndex = i;
+             break;
+          }
+       }
+    } else {
+       insertIndex = 1;
+    }
+
+    // Create the draggable big fat white dot
+    const el = document.createElement('div');
+    el.style.width = '20px';
+    el.style.height = '20px';
+    el.style.backgroundColor = '#FFFFFF';
+    el.style.border = '3px solid #3B82F6';
+    el.style.borderRadius = '50%';
+    el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+    el.style.cursor = 'grab';
+
+    tempMarker = new maplibregl.Marker({ element: el, draggable: true })
+      .setLngLat(snapped.geometry.coordinates)
+      .addTo(map);
+
+    tempMarker.on('dragstart', () => {
+      el.style.cursor = 'grabbing';
+      el.style.transform = 'scale(1.2)';
+    });
+
+    tempMarker.on('dragend', () => {
+      el.style.cursor = 'grab';
+      el.style.transform = 'scale(1)';
+      const lngLat = tempMarker.getLngLat();
+      
+      // Send message to C# to insert waypoint
+      postMessage({
+         type: 'insertWaypoint',
+         lon: lngLat.lng,
+         lat: lngLat.lat,
+         index: insertIndex
+      });
+      
+      tempMarker.remove();
+      tempMarker = null;
     });
   });
 
@@ -303,6 +382,16 @@ function rebuildLayers() {
       data: { type: 'Feature', geometry: { type: 'LineString', coordinates: state.routeCoords } }
     });
     map.addLayer({
+      id: 'route-hitbox',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 20,
+        'line-opacity': 0.0, // Invisible but clickable!
+      }
+    });
+    map.addLayer({
       id: 'route-line-bg',
       type: 'line',
       source: 'route',
@@ -312,7 +401,7 @@ function rebuildLayers() {
         'line-opacity': 0.35,
       },
       layout: {
-        'visibility': state.routeDrawMode === 'fullRoute' ? 'visible' : 'none'
+        'visibility': state.animPlaying || state.exportMode ? 'none' : 'visible'
       }
     });
     map.addLayer({
@@ -320,13 +409,13 @@ function rebuildLayers() {
       type: 'line',
       source: 'route',
       paint: {
-        'line-color': '#4F6BFF',
+        'line-color': '#FFB800',
         'line-width': 4,
         'line-opacity': 0.85,
         'line-dasharray': [2, 2]
       },
       layout: {
-        'visibility': state.routeDrawMode === 'fullRoute' ? 'visible' : 'none'
+        'visibility': state.animPlaying || state.exportMode ? 'none' : 'visible'
       }
     });
   }
@@ -399,7 +488,7 @@ function getTrailPaintProperties() {
 
 function updateLayerStyles() {
   if (map.getLayer('route-line')) {
-    const vis = state.routeDrawMode === 'fullRoute' ? 'visible' : 'none';
+    const vis = (state.animPlaying || state.exportMode) ? 'none' : 'visible';
     map.setLayoutProperty('route-line', 'visibility', vis);
     map.setLayoutProperty('route-line-bg', 'visibility', vis);
   }
@@ -415,8 +504,8 @@ function updateLayerStyles() {
 //  BRIDGE API (C# → JS)
 // ═══════════════════════════════════════════════════════════════
 window.bridge = {
-  addWaypoint({ id, lat, lon, label }) {
-    const idx = state.waypoints.length;
+  addWaypoint({ id, lat, lon, label, index }) {
+    if (index === undefined) index = state.waypoints.length;
     
     // Foolproof centering: 0x0 wrapper to bypass MapLibre's bounding box measurements
     const wrapper = document.createElement('div');
@@ -425,8 +514,8 @@ window.bridge = {
     wrapper.style.height = '0px';
 
     const el = document.createElement('div');
-    el.className = 'waypoint-badge' + (idx === 0 ? ' start' : '');
-    el.innerHTML = idx === 0 ? '🛫' : `<span>${idx + 1}</span>`;
+    el.className = 'waypoint-badge';
+    // Label updated in updateWaypointBadges
     // Center the 36x36 badge perfectly on the 0,0 wrapper
     el.style.position = 'absolute';
     el.style.left = '-18px';
@@ -450,7 +539,12 @@ window.bridge = {
       postMessage({ type: 'waypointMoved', id, lat: pos.lat, lon: pos.lng });
     });
 
-    state.waypoints.push({ id, lat, lon, label, marker });
+    if (index >= state.waypoints.length) {
+      state.waypoints.push({ id, lat, lon, label, marker });
+    } else {
+      state.waypoints.splice(index, 0, { id, lat, lon, label, marker });
+    }
+    
     updateWaypointBadges();
   },
 
@@ -485,7 +579,7 @@ window.bridge = {
     if (map.getSource('trail')) {
       map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
     }
-
+    
     updateLayerStyles();
 
     if (coordinates.length >= 2) {
@@ -572,6 +666,8 @@ window.bridge = {
     if (cameraBearingOffset !== undefined) state.cameraBearingOffset = cameraBearingOffset;
     
     state.animPlaying = true;
+    toggleDrawVisibility(false);
+    
     state.lastFrameTime = null;
     if (state.animProgress >= 1) state.animProgress = 0;
 
@@ -604,12 +700,14 @@ window.bridge = {
 
   pauseAnimation() {
     state.animPlaying = false;
+    toggleDrawVisibility(true);
     map.stop();
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
   },
 
   stopAnimation() {
     state.animPlaying = false;
+    toggleDrawVisibility(true);
     state.animProgress = 0;
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
     document.getElementById('hud').style.display = 'none';
@@ -620,6 +718,7 @@ window.bridge = {
 
   setExportMode({ isExporting }) {
     state.exportMode = isExporting;
+    toggleDrawVisibility(!isExporting);
     if (!isExporting) {
       if (state.cloudOpacity > 0) startClouds();
       if (state.rainIntensity > 0) startRain();
@@ -692,6 +791,14 @@ window.bridge = {
     );
   }
 };
+
+function toggleDrawVisibility(visible) {
+  if (!map || !map.getStyle()) return;
+  const val = visible ? 'visible' : 'none';
+  if (map.getLayer('route-line')) map.setLayoutProperty('route-line', 'visibility', val);
+  if (map.getLayer('route-line-bg')) map.setLayoutProperty('route-line-bg', 'visibility', val);
+  if (map.getLayer('route-hitbox')) map.setLayoutProperty('route-hitbox', 'visibility', val);
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  MARKER & DOM HELPERS
@@ -1252,7 +1359,7 @@ function placeTransportAtProgress(p) {
       }
 
       // Camera Follow
-      if (state.cameraFollow) {
+      if (state.cameraFollow && (state.animPlaying || state.exportMode)) {
         applyUnityCameraFollow(targetLon, targetLat, vehicleHeading);
       }
 }

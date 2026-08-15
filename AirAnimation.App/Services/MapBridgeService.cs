@@ -17,6 +17,7 @@ public sealed class MapBridgeService
     // ── Events raised from JS ─────────────────────────────────────────────────
     public event EventHandler<MapClickArgs>? MapClicked;
     public event EventHandler<WaypointMovedArgs>? WaypointMoved;
+    public event EventHandler<InsertWaypointArgs>? WaypointInserted;
     public event EventHandler? MapReady;
     public event EventHandler<double>? AnimationProgressChanged;
 
@@ -60,14 +61,21 @@ public sealed class MapBridgeService
                     var prog = doc.RootElement.GetProperty("progress").GetDouble();
                     AnimationProgressChanged?.Invoke(this, prog);
                     break;
+
+                case "insertWaypoint":
+                    var ilat = doc.RootElement.GetProperty("lat").GetDouble();
+                    var ilon = doc.RootElement.GetProperty("lon").GetDouble();
+                    var idx = doc.RootElement.GetProperty("index").GetInt32();
+                    WaypointInserted?.Invoke(this, new InsertWaypointArgs(ilat, ilon, idx));
+                    break;
             }
         }
         catch { /* ignore parse errors */ }
     }
 
     // ── Commands to JS ────────────────────────────────────────────────────────
-    public Task AddWaypointAsync(string id, double lat, double lon, string label) =>
-        ExecAsync("addWaypoint", new { id, lat, lon, label });
+    public Task AddWaypointAsync(string id, double lat, double lon, string label, int index) =>
+        ExecAsync("addWaypoint", new { id, lat, lon, label, index });
 
     public Task MoveWaypointAsync(string id, double lat, double lon) =>
         ExecAsync("moveWaypoint", new { id, lat, lon });
@@ -163,3 +171,4 @@ public sealed class MapBridgeService
 
 public record MapClickArgs(double Lat, double Lon);
 public record WaypointMovedArgs(string Id, double Lat, double Lon);
+public record InsertWaypointArgs(double Lat, double Lon, int Index);

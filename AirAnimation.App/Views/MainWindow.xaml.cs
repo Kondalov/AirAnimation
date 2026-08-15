@@ -25,7 +25,7 @@ public partial class MainWindow : Window
         {
             // RouteViewModel → add/remove waypoints on map
             vm.RouteViewModel.WaypointAdded += async (_, args) =>
-                await vm.MapViewModel.AddWaypointAsync(args.id, args.lat, args.lon, args.label);
+                await vm.MapViewModel.AddWaypointAsync(args.id, args.lat, args.lon, args.label, args.index);
 
             vm.RouteViewModel.WaypointRemoved += async (_, id) =>
                 await vm.MapViewModel.RemoveWaypointAsync(id);
@@ -33,6 +33,9 @@ public partial class MainWindow : Window
             // MapView click → RouteViewModel
             vm.MapViewModel.Bridge.MapClicked += async (_, args) =>
                 await vm.RouteViewModel.AddWaypointFromMapAsync(args.Lat, args.Lon);
+
+            vm.MapViewModel.Bridge.WaypointInserted += async (_, args) =>
+                await vm.RouteViewModel.InsertWaypointFromMapAsync(args.Lat, args.Lon, args.Index);
 
             // Map drag → update position
             vm.MapViewModel.Bridge.WaypointMoved += (_, args) =>

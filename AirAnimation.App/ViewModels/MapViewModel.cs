@@ -37,8 +37,8 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task FitBoundsAsync() => _bridge.FitBoundsAsync();
 
-    public Task AddWaypointAsync(string id, double lat, double lon, string? label) =>
-        _bridge.AddWaypointAsync(id, lat, lon, label ?? string.Empty);
+    public Task AddWaypointAsync(string id, double lat, double lon, string? label, int index) =>
+        _bridge.AddWaypointAsync(id, lat, lon, label ?? string.Empty, index);
 
     public Task RemoveWaypointAsync(string id) => _bridge.RemoveWaypointAsync(id);
 
