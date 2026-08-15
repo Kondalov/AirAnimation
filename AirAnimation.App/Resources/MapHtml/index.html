@@ -69,6 +69,33 @@
   .hud-card .icon { font-size:16px; }
   .hud-card .val  { color:#4F6BFF; font-weight:700; }
   
+  /* City Popup Overlay */
+  #city-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: rgba(15, 23, 42, 0.7);
+    color: #fff;
+    padding: 16px 32px;
+    border-radius: 16px;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  #city-popup.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
   /* Loading screen */
   #loader {
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -106,6 +133,7 @@
 <canvas id="clouds-canvas"></canvas>
 <canvas id="rain-canvas" class="weather-canvas"></canvas>
 <canvas id="snow-canvas" class="weather-canvas"></canvas>
+<div id="city-popup"></div>
 <div id="hud" style="display:none">
   <div class="hud-card">
     <span class="icon">📍</span>
@@ -135,16 +163,16 @@ const DARK_STYLE = {
   sources: {
     osm: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: ['https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
+      attribution: '© CARTO',
       maxzoom: 19
     }
   },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#0b0e14' } },
     { id: 'tiles', type: 'raster', source: 'osm',
-      paint: { 'raster-opacity': 0.85, 'raster-brightness-min': 0, 'raster-saturation': -0.35, 'raster-contrast': 0.15 } }
+      paint: { 'raster-opacity': 1 } }
   ]
 };
 
@@ -170,9 +198,9 @@ const LIGHT_STYLE = {
   sources: {
     osm: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
+      attribution: '© CARTO',
       maxzoom: 19
     }
   },
@@ -254,6 +282,10 @@ const state = {
   modelAngleOffset: 0,        // degrees (-180..+180)
   flightAltitude: 2500,       // meters above ground (300..10000)
   enableBanking: true,
+  
+  // Features
+  showCityPopups: false,
+  shownCityPopups: new Set(),
   
   // Animation
   animFrame: null,
@@ -515,7 +547,6 @@ window.bridge = {
 
     const el = document.createElement('div');
     el.className = 'waypoint-badge';
-    // Label updated in updateWaypointBadges
     // Center the 36x36 badge perfectly on the 0,0 wrapper
     el.style.position = 'absolute';
     el.style.left = '-18px';
@@ -546,6 +577,29 @@ window.bridge = {
     }
     
     updateWaypointBadges();
+  },
+
+  setCityPopups(show) {
+    state.showCityPopups = show;
+  },
+
+  setRoute(coords, totalDist, bounds) {
+    state.routeCoords = coords || [];
+    state.totalDist = totalDist || 0;
+    
+    map.getSource('route')?.setData({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: state.routeCoords }
+    });
+    
+    if (bounds && bounds.length === 2 && !state.animPlaying) {
+      map.fitBounds(bounds, { padding: 80, duration: 800 });
+    }
+    
+    // Position transport at start
+    if (state.routeCoords.length >= 2) {
+      placeTransportAtProgress(0);
+    }
   },
 
   moveWaypoint({ id, lat, lon }) {
@@ -669,7 +723,12 @@ window.bridge = {
     toggleDrawVisibility(false);
     
     state.lastFrameTime = null;
-    if (state.animProgress >= 1) state.animProgress = 0;
+    if (state.animProgress >= 1) {
+      state.animProgress = 0;
+    }
+    if (state.animProgress === 0) {
+      state.shownCityPopups.clear();
+    }
 
     if (state.showHud !== false) {
       document.getElementById('hud').style.display = 'flex';
@@ -709,6 +768,7 @@ window.bridge = {
     state.animPlaying = false;
     toggleDrawVisibility(true);
     state.animProgress = 0;
+    state.shownCityPopups.clear();
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
     document.getElementById('hud').style.display = 'none';
     placeTransportAtProgress(0);
@@ -718,6 +778,7 @@ window.bridge = {
 
   setExportMode({ isExporting }) {
     state.exportMode = isExporting;
+    if (isExporting) state.shownCityPopups.clear();
     toggleDrawVisibility(!isExporting);
     if (!isExporting) {
       if (state.cloudOpacity > 0) startClouds();
@@ -798,6 +859,13 @@ function toggleDrawVisibility(visible) {
   if (map.getLayer('route-line')) map.setLayoutProperty('route-line', 'visibility', val);
   if (map.getLayer('route-line-bg')) map.setLayoutProperty('route-line-bg', 'visibility', val);
   if (map.getLayer('route-hitbox')) map.setLayoutProperty('route-hitbox', 'visibility', val);
+  
+  const displayVal = visible ? 'block' : 'none';
+  state.waypoints.forEach(w => {
+    if (w.marker) {
+      w.marker.getElement().style.display = displayVal;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -907,6 +975,7 @@ function runAnimation() {
   placeTransportAtProgress(state.animProgress);
   updateTrail(state.animProgress);
   updateHud(state.animProgress);
+  checkCityPopups(state.animProgress, [state.currentLon, state.currentLat]);
   postMessage({ type: 'animationProgress', progress: state.animProgress });
 
   if (state.animPlaying) {
@@ -914,6 +983,45 @@ function runAnimation() {
   } else {
     state.lastFrameTime = null;
   }
+}
+
+// ── City Popups Logic ────────────────────────────────────────────
+function checkCityPopups(p, currentLngLat) {
+  if (!state.showCityPopups) return;
+  if (p <= 0 || p >= 1) return; // Don't show at very start or end
+  
+  const currentPt = turf.point(currentLngLat);
+  
+  state.waypoints.forEach((w, i) => {
+    // Skip if no label
+    if (!w.label) return;
+    
+    if (!state.shownCityPopups.has(w.id)) {
+      const wpPt = turf.point([w.lon, w.lat]);
+      const dist = turf.distance(currentPt, wpPt, { units: 'kilometers' });
+      
+      // If we are within 20km of the city, trigger popup
+      if (dist < 20) {
+        state.shownCityPopups.add(w.id);
+        showCityPopup(w.label);
+      }
+    }
+  });
+}
+
+function showCityPopup(cityName) {
+  const popup = document.getElementById('city-popup');
+  if (!popup) return;
+  
+  popup.textContent = cityName;
+  popup.classList.add('visible');
+  
+  // Random duration between 1s and 3s (1000ms to 3000ms)
+  const duration = Math.floor(Math.random() * 2000) + 1000;
+  
+  setTimeout(() => {
+    popup.classList.remove('visible');
+  }, duration);
 }
 
 // ── WebGL Clouds Engine ──────────────────────────────────────────
@@ -1277,6 +1385,8 @@ function placeTransportAtProgress(p) {
     }
   }
 
+  if (isNaN(targetLon) || isNaN(targetLat)) return;
+
   if (!state.transportMarker) {
     state.transportMarker = new maplibregl.Marker({ 
       element: createTransportDOM(),
@@ -1323,8 +1433,10 @@ function placeTransportAtProgress(p) {
     state.lastSmoothedLat = targetLat;
   }
 
-  // Calculate instantaneous heading
+  // Calculate instantaneous heading and update current position state
   state.currentHeading = vehicleHeading;
+  state.currentLon = targetLon;
+  state.currentLat = targetLat;
 
       // 3D Banking Physics
       if (state.enableBanking) {
@@ -1371,6 +1483,8 @@ function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
   let opts = {
     center: [targetLon, targetLat]
   };
+  
+  if (isNaN(targetLon) || isNaN(targetLat)) return;
 
   if (state.cameraMode === 'overview') {
     opts.pitch = 0;

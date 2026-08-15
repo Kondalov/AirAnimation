@@ -140,6 +140,9 @@ public sealed class MapBridgeService
     public Task SetSnowIntensityAsync(double intensity) =>
         ExecAsync("setSnowIntensity", new { intensity });
 
+    public Task SetCityPopupsAsync(bool show) =>
+        ExecAsync("setCityPopups", show);
+
     public Task FitBoundsAsync() =>
         ExecAsync("fitBounds", new { });
 

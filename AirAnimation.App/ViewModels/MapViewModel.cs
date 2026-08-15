@@ -64,6 +64,10 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task SetExportModeAsync(bool isExporting) => _bridge.SetExportModeAsync(isExporting);
 
+    public Task SetSnowIntensityAsync(double intensity) => _bridge.SetSnowIntensityAsync(intensity);
+    
+    public Task SetCityPopupsAsync(bool show) => _bridge.SetCityPopupsAsync(show);
+
     public Task SetHudVisibilityAsync(bool visible) => _bridge.SetHudVisibilityAsync(visible);
 
     public Task CapturePreviewAsync(Stream stream) => _bridge.CapturePreviewAsync(stream);

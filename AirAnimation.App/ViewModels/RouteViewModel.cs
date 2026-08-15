@@ -55,7 +55,8 @@ public sealed partial class RouteViewModel : ObservableObject
 
     public async Task AddWaypointFromMapAsync(double lat, double lon)
     {
-        var item = new WaypointItemViewModel { Lat = lat, Lon = lon };
+        var name = await _geocodingService.ReverseGeocodeAsync(lat, lon);
+        var item = new WaypointItemViewModel { Lat = lat, Lon = lon, Name = name };
         Waypoints.Add(item);
         WaypointAdded?.Invoke(this, (item.Id, lat, lon, item.Name, Waypoints.Count - 1));
 
@@ -65,16 +66,14 @@ public sealed partial class RouteViewModel : ObservableObject
 
     public async Task InsertWaypointFromMapAsync(double lat, double lon, int index)
     {
-        var item = new WaypointItemViewModel { Lat = lat, Lon = lon };
-        if (index >= 0 && index < Waypoints.Count)
-        {
-            Waypoints.Insert(index, item);
-        }
-        else
-        {
-            Waypoints.Add(item);
-        }
+        var name = await _geocodingService.ReverseGeocodeAsync(lat, lon);
+        var item = new WaypointItemViewModel { Lat = lat, Lon = lon, Name = name };
         
+        if (index >= 0 && index <= Waypoints.Count)
+            Waypoints.Insert(index, item);
+        else
+            Waypoints.Add(item);
+            
         int insertIdx = Waypoints.IndexOf(item);
         WaypointAdded?.Invoke(this, (item.Id, lat, lon, item.Name, insertIdx));
         
@@ -140,6 +139,7 @@ public sealed partial class RouteViewModel : ObservableObject
                 Lon  = wp.Longitude,
                 Name = wp.Name
             };
+                
             Waypoints.Add(item);
             WaypointAdded?.Invoke(this, (item.Id, item.Lat, item.Lon, item.Name, Waypoints.Count - 1));
         }

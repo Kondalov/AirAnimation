@@ -36,6 +36,7 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private bool showTrail = true;
     [ObservableProperty] private bool showCityLabels = true;
     [ObservableProperty] private bool showCountryFlags = true;
+    [ObservableProperty] private bool showCityPopups = false;
     [ObservableProperty] private double progress;          // 0..1
     [ObservableProperty] private double totalDistanceKm;
     [ObservableProperty] private bool isPlaying;
@@ -47,6 +48,7 @@ public sealed partial class AnimationViewModel : ObservableObject
     public event EventHandler<double>? CloudOpacityChanged;
     public event EventHandler<double>? RainIntensityChanged;
     public event EventHandler<double>? SnowIntensityChanged;
+    public event EventHandler<bool>? ShowCityPopupsChanged;
     public event EventHandler<CameraSettingsEventArgs>? CameraChanged;
     public event EventHandler<RouteSettingsEventArgs>? RouteSettingsChanged;
     public event EventHandler<OrientationSettingsEventArgs>? OrientationSettingsChanged;
@@ -67,6 +69,10 @@ public sealed partial class AnimationViewModel : ObservableObject
     partial void OnCloudOpacityChanged(double value) => CloudOpacityChanged?.Invoke(this, value);
     partial void OnRainIntensityChanged(double value) => RainIntensityChanged?.Invoke(this, value);
     partial void OnSnowIntensityChanged(double value) => SnowIntensityChanged?.Invoke(this, value);
+    
+    partial void OnShowCityPopupsChanged(bool value) => ShowCityPopupsChanged?.Invoke(this, value);
+
+    partial void OnMapStyleChanged(string value) => MapStyleChanged?.Invoke(this, value);
 
     partial void OnCameraFollowChanged(bool value) => RaiseCameraUpdate();
     partial void OnCameraPitchChanged(double value) => RaiseCameraUpdate();
@@ -92,8 +98,6 @@ public sealed partial class AnimationViewModel : ObservableObject
 
     partial void OnRouteDrawModeChanged(string value) => RaiseRouteSettingsUpdate();
     partial void OnTrailStyleChanged(string value) => RaiseRouteSettingsUpdate();
-    
-    partial void OnMapStyleChanged(string value) => MapStyleChanged?.Invoke(this, value);
 
     partial void OnTotalDistanceKmChanged(double value) =>
         OnPropertyChanged(nameof(DistanceLabel));

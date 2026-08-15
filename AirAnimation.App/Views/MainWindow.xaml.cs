@@ -57,6 +57,9 @@ public partial class MainWindow : Window
             vm.AnimationViewModel.OrientationSettingsChanged += async (_, o) =>
                 await vm.MapViewModel.SetOrientationSettingsAsync(o.Mode, o.AngleOffset, o.Altitude, o.Banking, o.SmoothAnimation);
 
+            vm.AnimationViewModel.ShowCityPopupsChanged += async (_, show) =>
+                await vm.MapViewModel.SetCityPopupsAsync(show);
+
             // Map Style update
             vm.AnimationViewModel.MapStyleChanged += async (_, style) =>
                 await vm.MapViewModel.SetMapStyleAsync(style);

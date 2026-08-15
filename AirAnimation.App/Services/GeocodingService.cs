@@ -55,6 +55,34 @@ public sealed class GeocodingService : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Reverse geocodes coordinates to a location name.
+    /// </summary>
+    public async Task<string?> ReverseGeocodeAsync(double lat, double lon, CancellationToken ct = default)
+    {
+        var url = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&lon={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&format=json&accept-language=ru,en";
+        try
+        {
+            var json = await _http.GetStringAsync(url, ct);
+            using var doc = JsonDocument.Parse(json);
+            
+            if (doc.RootElement.TryGetProperty("address", out var address))
+            {
+                if (address.TryGetProperty("city", out var city)) return city.GetString();
+                if (address.TryGetProperty("town", out var town)) return town.GetString();
+                if (address.TryGetProperty("village", out var village)) return village.GetString();
+                if (address.TryGetProperty("state", out var state)) return state.GetString();
+            }
+            
+            if (doc.RootElement.TryGetProperty("display_name", out var displayName))
+            {
+                return displayName.GetString()?.Split(',')[0].Trim();
+            }
+        }
+        catch { }
+        return null;
+    }
+
     public void Dispose()
     {
         _http.Dispose();

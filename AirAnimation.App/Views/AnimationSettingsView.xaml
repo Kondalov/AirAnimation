@@ -201,7 +201,9 @@
                     <CheckBox Content="Метки городов"
                               IsChecked="{Binding ShowCityLabels, Mode=TwoWay}"/>
                     <CheckBox Content="Флаги стран"
-                              IsChecked="{Binding ShowCountryFlags, Mode=TwoWay}"
+                              IsChecked="{Binding ShowCountryFlags, Mode=TwoWay}"/>
+                    <CheckBox Content="Всплывающие города"
+                              IsChecked="{Binding ShowCityPopups, Mode=TwoWay}"
                               Margin="0,0,0,12"/>
 
                     <Grid Margin="0,0,0,4">
