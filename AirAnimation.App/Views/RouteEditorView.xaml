@@ -62,9 +62,29 @@
                 <TextBox Text="{Binding RouteName, UpdateSourceTrigger=PropertyChanged}"
                          Margin="0,0,0,8"/>
 
-                <CheckBox Content="Режим полёта (по прямой)"
+                <CheckBox Content="✈ Режим самолёта (полёт дугой)"
                           IsChecked="{Binding IsFlightMode}"
                           Margin="0,0,0,12"/>
+
+                <!-- Quick Add (Geocoding) -->
+                <Border Background="{StaticResource BgCardBrush}" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="ПОИСК ПО НАЗВАНИЮ" FontSize="10" FontWeight="Medium"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <TextBlock Text="Откуда" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding SearchQueryFrom, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                        
+                        <TextBlock Text="Куда" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding SearchQueryTo, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                        
+                        <Button Command="{Binding BuildFromTextCommand}" Content="Построить маршрут" />
+                        
+                        <TextBlock Text="{Binding RoutingError}" Foreground="{StaticResource DangerBrush}" 
+                                   FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding RoutingError, Converter={StaticResource NullToBool}}"/>
+                    </StackPanel>
+                </Border>
 
                 <TextBlock Text="ТОЧКИ" Style="{StaticResource SectionHeader}"/>
                 <TextBlock Text="Нажмите на карту для добавления точек маршрута"

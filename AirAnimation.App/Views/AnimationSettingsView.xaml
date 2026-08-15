@@ -6,38 +6,56 @@
         <StackPanel Margin="14,10">
             <TextBlock Text="НАСТРОЙКИ АНИМАЦИИ" Style="{StaticResource SectionHeader}"/>
 
-            <!-- Speed Card -->
+            <!-- Speed & Duration Card -->
             <Border Style="{StaticResource Card}" Margin="0,4,0,12">
                 <StackPanel>
-                    <Grid Margin="0,0,0,8">
-                        <TextBlock Text="⚡ Скорость анимации" FontWeight="SemiBold" FontSize="13"/>
-                        <TextBlock Text="{Binding SpeedLabel}" HorizontalAlignment="Right"
-                                   Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="14"/>
-                    </Grid>
-                    
-                    <Slider Minimum="0.5" Maximum="500"
-                            Value="{Binding SpeedMultiplier, Mode=TwoWay}"
-                            IsMoveToPointEnabled="True"
-                            SmallChange="1" LargeChange="25"
-                            Margin="0,0,0,10"/>
+                    <TextBlock Text="⏱ Время и скорость анимации" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Быстрый выбор скорости:" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
-                    <WrapPanel HorizontalAlignment="Center">
-                        <Button Content="1×"   Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="1"   Click="SpeedPreset_Click"/>
-                        <Button Content="5×"   Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="5"   Click="SpeedPreset_Click"/>
-                        <Button Content="10×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="10"  Click="SpeedPreset_Click"/>
-                        <Button Content="25×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="25"  Click="SpeedPreset_Click"/>
-                        <Button Content="50×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="50"  Click="SpeedPreset_Click"/>
-                        <Button Content="100×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="100" Click="SpeedPreset_Click"/>
-                        <Button Content="150×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="150" Click="SpeedPreset_Click"/>
-                        <Button Content="200×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="200" Click="SpeedPreset_Click"/>
-                        <Button Content="250×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="250" Click="SpeedPreset_Click"/>
-                        <Button Content="300×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="300" Click="SpeedPreset_Click"/>
-                        <Button Content="350×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="350" Click="SpeedPreset_Click"/>
-                        <Button Content="400×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="400" Click="SpeedPreset_Click"/>
-                        <Button Content="450×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="450" Click="SpeedPreset_Click"/>
-                        <Button Content="500×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="500" Click="SpeedPreset_Click"/>
-                    </WrapPanel>
+                    <RadioButton Content="Задать множитель скорости"
+                                 IsChecked="{Binding UseTargetDuration, Converter={StaticResource InverseBoolConverter}}"
+                                 GroupName="DurationMode" Margin="0,0,0,4"/>
+                                 
+                    <StackPanel IsEnabled="{Binding UseTargetDuration, Converter={StaticResource InverseBoolConverter}}" Margin="16,0,0,12">
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="{Binding SpeedLabel}" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="14"/>
+                        </Grid>
+                        
+                        <Slider Minimum="0.5" Maximum="500"
+                                Value="{Binding SpeedMultiplier, Mode=TwoWay}"
+                                IsMoveToPointEnabled="True"
+                                SmallChange="1" LargeChange="25"
+                                Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Быстрый выбор скорости:" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button Content="1×"   Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="1"   Click="SpeedPreset_Click"/>
+                            <Button Content="5×"   Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="5"   Click="SpeedPreset_Click"/>
+                            <Button Content="10×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="10"  Click="SpeedPreset_Click"/>
+                            <Button Content="25×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="25"  Click="SpeedPreset_Click"/>
+                            <Button Content="50×"  Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="50"  Click="SpeedPreset_Click"/>
+                            <Button Content="100×" Style="{StaticResource GhostBtn}" FontSize="10" Padding="6,3" Margin="2" Tag="100" Click="SpeedPreset_Click"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <RadioButton Content="Задать точное время видео"
+                                 IsChecked="{Binding UseTargetDuration}"
+                                 GroupName="DurationMode" Margin="0,0,0,4"/>
+                                 
+                    <StackPanel IsEnabled="{Binding UseTargetDuration}" Margin="16,0,0,4">
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="Длительность (секунд):" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="14">
+                                <Run Text="{Binding TargetDurationSeconds, StringFormat={}{0:F0} сек, Mode=OneWay}"/>
+                            </TextBlock>
+                        </Grid>
+                        
+                        <Slider Minimum="5" Maximum="60"
+                                Value="{Binding TargetDurationSeconds, Mode=TwoWay}"
+                                IsMoveToPointEnabled="True"
+                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                Margin="0,0,0,4"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -78,7 +96,11 @@
                             SmallChange="200" LargeChange="1000" Margin="0,0,0,10"/>
 
                     <CheckBox Content="Динамический крен при виражах (3D Banking)"
-                              IsChecked="{Binding EnableBanking, Mode=TwoWay}"/>
+                              IsChecked="{Binding EnableBanking, Mode=TwoWay}"
+                              Margin="0,0,0,8"/>
+                              
+                    <CheckBox Content="Сглаживание движений (кинематографичная камера)"
+                              IsChecked="{Binding SmoothAnimation, Mode=TwoWay}"/>
                 </StackPanel>
             </Border>
 
@@ -179,7 +201,43 @@
                     <CheckBox Content="Метки городов"
                               IsChecked="{Binding ShowCityLabels, Mode=TwoWay}"/>
                     <CheckBox Content="Флаги стран"
-                              IsChecked="{Binding ShowCountryFlags, Mode=TwoWay}"/>
+                              IsChecked="{Binding ShowCountryFlags, Mode=TwoWay}"
+                              Margin="0,0,0,12"/>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="Прозрачность облаков:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="11">
+                            <Run Text="{Binding CloudOpacity, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="0" Maximum="1"
+                            Value="{Binding CloudOpacity, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            SmallChange="0.05" LargeChange="0.2"
+                            Margin="0,0,0,12"/>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="🌧 Интенсивность дождя:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="11">
+                            <Run Text="{Binding RainIntensity, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="0" Maximum="1"
+                            Value="{Binding RainIntensity, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            SmallChange="0.05" LargeChange="0.2"
+                            Margin="0,0,0,12"/>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="❄ Интенсивность снега:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="11">
+                            <Run Text="{Binding SnowIntensity, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="0" Maximum="1"
+                            Value="{Binding SnowIntensity, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            SmallChange="0.05" LargeChange="0.2"/>
                 </StackPanel>
             </Border>
 

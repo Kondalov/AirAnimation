@@ -26,6 +26,7 @@ public sealed class WaypointItemViewModel : ObservableObject
 public sealed partial class RouteViewModel : ObservableObject
 {
     private readonly RouteService _routeService;
+    private readonly GeocodingService _geocodingService;
 
     public ObservableCollection<WaypointItemViewModel> Waypoints { get; } = [];
     public List<RouteSegment> Segments { get; private set; } = [];
@@ -35,15 +36,21 @@ public sealed partial class RouteViewModel : ObservableObject
     [ObservableProperty] private WaypointItemViewModel? selectedWaypoint;
     [ObservableProperty] private bool isRouting;
 
+    [ObservableProperty] private string searchQueryFrom = "";
+    [ObservableProperty] private string searchQueryTo = "";
+    [ObservableProperty] private string? routingError;
+
     public event EventHandler? RouteUpdated;
+    public event EventHandler? BoundsRequested;
 
     // Raised to tell MapView to add/remove a marker
     public event EventHandler<(string id, double lat, double lon, string? label)>? WaypointAdded;
     public event EventHandler<string>? WaypointRemoved;
 
-    public RouteViewModel(RouteService routeService)
+    public RouteViewModel(RouteService routeService, GeocodingService geocodingService)
     {
         _routeService = routeService;
+        _geocodingService = geocodingService;
     }
 
     public async Task AddWaypointFromMapAsync(double lat, double lon)
@@ -128,6 +135,54 @@ public sealed partial class RouteViewModel : ObservableObject
         Waypoints.Clear();
         Segments.Clear();
         TotalDistanceKm = 0;
+    }
+
+    [RelayCommand]
+    private async Task BuildFromTextAsync()
+    {
+        RoutingError = null;
+
+        if (string.IsNullOrWhiteSpace(SearchQueryFrom) || string.IsNullOrWhiteSpace(SearchQueryTo))
+        {
+            RoutingError = "Введите начальную и конечную точки.";
+            return;
+        }
+
+        IsRouting = true;
+        try
+        {
+            var fromResult = await _geocodingService.GeocodeAsync(SearchQueryFrom);
+            if (fromResult == null)
+            {
+                RoutingError = $"Не удалось найти: {SearchQueryFrom}";
+                return;
+            }
+
+            var toResult = await _geocodingService.GeocodeAsync(SearchQueryTo);
+            if (toResult == null)
+            {
+                RoutingError = $"Не удалось найти: {SearchQueryTo}";
+                return;
+            }
+
+            ClearAll();
+
+            var w1 = new WaypointItemViewModel { Lat = fromResult.Value.Lat, Lon = fromResult.Value.Lon, Name = fromResult.Value.Name };
+            var w2 = new WaypointItemViewModel { Lat = toResult.Value.Lat, Lon = toResult.Value.Lon, Name = toResult.Value.Name };
+            
+            Waypoints.Add(w1);
+            WaypointAdded?.Invoke(this, (w1.Id, w1.Lat, w1.Lon, w1.Name));
+            
+            Waypoints.Add(w2);
+            WaypointAdded?.Invoke(this, (w2.Id, w2.Lat, w2.Lon, w2.Name));
+
+            await RefreshSegmentsAsync();
+            BoundsRequested?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            IsRouting = false;
+        }
     }
 
     public IReadOnlyList<double[]> GetAllRouteCoordinates()

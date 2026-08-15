@@ -76,7 +76,27 @@ public sealed partial class ExportViewModel : ObservableObject
 
         try
         {
-            int totalFrames = Math.Max(30, VideoDurationSeconds * Fps);
+            // Smart Video Duration logic
+            double durationSec = 12; // default
+            if (_animVm != null && _routeVm != null)
+            {
+                if (_animVm.UseTargetDuration)
+                {
+                    durationSec = _animVm.TargetDurationSeconds;
+                }
+                else
+                {
+                    // Calculate based on speed multiplier
+                    double speedKmh = 100; // default transport speed, could be read from TransportViewModel but we don't have it here
+                    double realHours = _routeVm.TotalDistanceKm / speedKmh;
+                    durationSec = (realHours * 3600) / Math.Max(0.1, _animVm.SpeedMultiplier);
+                }
+            }
+            
+            // Limit duration strictly between 5 and 60 seconds
+            durationSec = Math.Max(5, Math.Min(60, durationSec));
+            
+            int totalFrames = (int)Math.Max(30, durationSec * Fps);
 
             if (_mapVm != null)
                 await _mapVm.SetHudVisibilityAsync(IncludeHud);

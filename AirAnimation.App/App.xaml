@@ -16,6 +16,7 @@
             <conv:CountToVisibilityConverter x:Key="ZeroCountToVis" Invert="True"/>
             <conv:NullToBoolConverter x:Key="NullToBool"/>
             <conv:ProgressToPercentConverter x:Key="ProgressToPercent"/>
+            <conv:InverseBoolConverter x:Key="InverseBoolConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

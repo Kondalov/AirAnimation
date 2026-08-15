@@ -52,11 +52,20 @@ public partial class MainWindow : Window
 
             // Real-time 3D flight orientation update (Heading, Offset, Altitude, Banking)
             vm.AnimationViewModel.OrientationSettingsChanged += async (_, o) =>
-                await vm.MapViewModel.SetOrientationSettingsAsync(o.Mode, o.AngleOffset, o.Altitude, o.Banking);
+                await vm.MapViewModel.SetOrientationSettingsAsync(o.Mode, o.AngleOffset, o.Altitude, o.Banking, o.SmoothAnimation);
 
             // Map Style update
             vm.AnimationViewModel.MapStyleChanged += async (_, style) =>
                 await vm.MapViewModel.SetMapStyleAsync(style);
+
+            vm.AnimationViewModel.CloudOpacityChanged += async (_, opacity) =>
+                await vm.MapViewModel.Bridge.SetCloudOpacityAsync(opacity);
+
+            vm.AnimationViewModel.RainIntensityChanged += async (_, intensity) =>
+                await vm.MapViewModel.Bridge.SetRainIntensityAsync(intensity);
+
+            vm.AnimationViewModel.SnowIntensityChanged += async (_, intensity) =>
+                await vm.MapViewModel.Bridge.SetSnowIntensityAsync(intensity);
 
             // Animation progress & completion → AnimationViewModel
             vm.MapViewModel.Bridge.AnimationProgressChanged += (_, p) =>

@@ -96,8 +96,8 @@ public sealed class MapBridgeService
     public Task SetMapStyleAsync(string styleUrl) =>
         ExecAsync("setMapStyle", new { styleUrl });
 
-    public Task PlayAnimationAsync(double speedMultiplier, bool cameraFollow, double cameraPitch, string cameraMode = "follow", double cameraZoom = 7.5, double cameraBearingOffset = 0, bool globeIntro = false) =>
-        ExecAsync("playAnimation", new { speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro });
+    public Task PlayAnimationAsync(double speedMultiplier, bool cameraFollow, double cameraPitch, string cameraMode = "follow", double cameraZoom = 7.5, double cameraBearingOffset = 0, bool globeIntro = false, double? targetDurationSeconds = null) =>
+        ExecAsync("playAnimation", new { speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro, targetDurationSeconds });
 
     public Task PauseAnimationAsync() =>
         ExecAsync("pauseAnimation", new { });
@@ -111,14 +111,23 @@ public sealed class MapBridgeService
     public Task SetCameraSettingsAsync(bool cameraFollow, double cameraPitch, string cameraMode = "follow", double cameraZoom = 7.5, double cameraBearingOffset = 0) =>
         ExecAsync("setCameraSettings", new { cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset });
 
-    public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking) =>
-        ExecAsync("setOrientationSettings", new { mode, angleOffset, altitude, banking });
+    public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking, bool smoothAnimation = false) =>
+        ExecAsync("setOrientationSettings", new { mode, angleOffset, altitude, banking, smoothAnimation });
 
     public Task SeekAnimationAsync(double progress) =>
         ExecAsync("seekAnimation", new { progress });
 
     public Task SetHudVisibilityAsync(bool visible) =>
         ExecAsync("setHudVisibility", new { visible });
+
+    public Task SetCloudOpacityAsync(double opacity) =>
+        ExecAsync("setCloudOpacity", new { opacity });
+
+    public Task SetRainIntensityAsync(double intensity) =>
+        ExecAsync("setRainIntensity", new { intensity });
+
+    public Task SetSnowIntensityAsync(double intensity) =>
+        ExecAsync("setSnowIntensity", new { intensity });
 
     public Task FitBoundsAsync() =>
         ExecAsync("fitBounds", new { });

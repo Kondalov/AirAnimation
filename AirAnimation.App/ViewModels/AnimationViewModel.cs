@@ -19,6 +19,11 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private bool enableBanking = true; // 3D aircraft roll on turns
 
     [ObservableProperty] private bool enableSpaceIntro = false; // Globe/Space intro animation
+    
+    // Smart Duration and Smoothing
+    [ObservableProperty] private bool useTargetDuration = false;
+    [ObservableProperty] private double targetDurationSeconds = 15; // 5..60
+    [ObservableProperty] private bool smoothAnimation = true; // Anti-Jerk EMA filter
 
     // Route Drawing Mode: 'trailOnly' (TravelBoast style) vs 'fullRoute' (Classic preview)
     [ObservableProperty] private string routeDrawMode = "trailOnly"; 
@@ -34,8 +39,14 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private double progress;          // 0..1
     [ObservableProperty] private double totalDistanceKm;
     [ObservableProperty] private bool isPlaying;
+    [ObservableProperty] private double cloudOpacity = 0.0; // 0.0 to 1.0
+    [ObservableProperty] private double rainIntensity = 0.0; // 0.0 to 1.0
+    [ObservableProperty] private double snowIntensity = 0.0; // 0.0 to 1.0
 
     public event EventHandler<double>? SpeedChanged;
+    public event EventHandler<double>? CloudOpacityChanged;
+    public event EventHandler<double>? RainIntensityChanged;
+    public event EventHandler<double>? SnowIntensityChanged;
     public event EventHandler<CameraSettingsEventArgs>? CameraChanged;
     public event EventHandler<RouteSettingsEventArgs>? RouteSettingsChanged;
     public event EventHandler<OrientationSettingsEventArgs>? OrientationSettingsChanged;
@@ -52,6 +63,10 @@ public sealed partial class AnimationViewModel : ObservableObject
         OnPropertyChanged(nameof(SpeedLabel));
         SpeedChanged?.Invoke(this, value);
     }
+
+    partial void OnCloudOpacityChanged(double value) => CloudOpacityChanged?.Invoke(this, value);
+    partial void OnRainIntensityChanged(double value) => RainIntensityChanged?.Invoke(this, value);
+    partial void OnSnowIntensityChanged(double value) => SnowIntensityChanged?.Invoke(this, value);
 
     partial void OnCameraFollowChanged(bool value) => RaiseCameraUpdate();
     partial void OnCameraPitchChanged(double value) => RaiseCameraUpdate();
@@ -73,6 +88,7 @@ public sealed partial class AnimationViewModel : ObservableObject
     partial void OnModelAngleOffsetChanged(double value) => RaiseOrientationUpdate();
     partial void OnFlightAltitudeChanged(double value) => RaiseOrientationUpdate();
     partial void OnEnableBankingChanged(bool value) => RaiseOrientationUpdate();
+    partial void OnSmoothAnimationChanged(bool value) => RaiseOrientationUpdate();
 
     partial void OnRouteDrawModeChanged(string value) => RaiseRouteSettingsUpdate();
     partial void OnTrailStyleChanged(string value) => RaiseRouteSettingsUpdate();
@@ -96,7 +112,7 @@ public sealed partial class AnimationViewModel : ObservableObject
     private void RaiseOrientationUpdate()
     {
         OrientationSettingsChanged?.Invoke(this, new OrientationSettingsEventArgs(
-            OrientationMode, ModelAngleOffset, FlightAltitude, EnableBanking));
+            OrientationMode, ModelAngleOffset, FlightAltitude, EnableBanking, SmoothAnimation));
     }
 }
 
@@ -117,5 +133,6 @@ public record OrientationSettingsEventArgs(
     string Mode,
     double AngleOffset,
     double Altitude,
-    bool Banking
+    bool Banking,
+    bool SmoothAnimation
 );

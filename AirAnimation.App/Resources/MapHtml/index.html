@@ -80,6 +80,28 @@
   }
   @keyframes spin { to { transform:rotate(360deg); } }
   #loader p { color:#9aa8c0; font-family:Segoe UI, sans-serif; font-size:13px; }
+  
+  #clouds-layer {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cpath fill='%23ffffff' opacity='0.7' d='M160 200a50 50 0 0 1 90-25 60 60 0 0 1 110 15 50 50 0 0 1 60 40 40 40 0 0 1-15 65H150a40 40 0 0 1 10-95zM530 600a50 50 0 0 1 90-25 60 60 0 0 1 110 15 50 50 0 0 1 60 40 40 40 0 0 1-15 65H520a40 40 0 0 1 10-95zM80 500a40 40 0 0 1 60-20 50 50 0 0 1 90 15 40 40 0 0 1 50 35 30 30 0 0 1-15 50H70a30 30 0 0 1 10-80zM600 150a30 30 0 0 1 50-15 40 40 0 0 1 70 10 30 30 0 0 1 40 25 20 20 0 0 1-10 40H590a20 20 0 0 1 10-60z'/%3E%3C/svg%3E");
+    background-size: 800px 800px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    z-index: 100;
+    animation: moveClouds 40s linear infinite;
+  }
+  @keyframes moveClouds {
+    from { background-position: 0px 0px; }
+    to { background-position: -800px 800px; }
+  }
+  .weather-canvas {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 101;
+  }
 </style>
 </head>
 <body>
@@ -88,6 +110,9 @@
   <p>Загрузка 3D карты AirAnimation...</p>
 </div>
 <div id="map"></div>
+<div id="clouds-layer"></div>
+<canvas id="rain-canvas" class="weather-canvas"></canvas>
+<canvas id="snow-canvas" class="weather-canvas"></canvas>
 <div id="hud" style="display:none">
   <div class="hud-card">
     <span class="icon">📍</span>
@@ -504,16 +529,34 @@ window.bridge = {
     updateLayerStyles();
   },
 
-  setOrientationSettings({ mode, angleOffset, altitude, banking }) {
+  setOrientationSettings({ mode, angleOffset, altitude, banking, smoothAnimation }) {
     if (mode !== undefined) state.orientationMode = mode;
     if (angleOffset !== undefined) state.modelAngleOffset = angleOffset;
     if (altitude !== undefined) state.flightAltitude = altitude;
     if (banking !== undefined) state.enableBanking = banking;
+    if (smoothAnimation !== undefined) state.smoothAnimation = smoothAnimation;
     
     // Refresh vehicle rotation immediately
     if (state.routeCoords && state.routeCoords.length >= 2) {
       placeTransportAtProgress(state.animProgress || 0);
     }
+  },
+
+  setCloudOpacity({ opacity }) {
+    const layer = document.getElementById('clouds-layer');
+    if (layer) {
+      layer.style.opacity = opacity;
+    }
+  },
+
+  setRainIntensity({ intensity }) {
+    state.rainIntensity = intensity;
+    if (intensity > 0 && !state.rainRunning) startRain();
+  },
+
+  setSnowIntensity({ intensity }) {
+    state.snowIntensity = intensity;
+    if (intensity > 0 && !state.snowRunning) startSnow();
   },
 
   setMapStyle({ styleUrl }) {
@@ -523,9 +566,10 @@ window.bridge = {
     map.once('styledata', () => { rebuildLayers(); });
   },
 
-  playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro }) {
+  playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro, targetDurationSeconds }) {
     if (state.routeCoords.length < 2) return;
     state.animSpeed = speedMultiplier || 1;
+    state.targetDurationSeconds = targetDurationSeconds;
     state.cameraFollow = cameraFollow !== false;
     if (cameraPitch !== undefined) state.cameraPitch = cameraPitch;
     if (cameraMode !== undefined) state.cameraMode = cameraMode;
@@ -715,6 +759,7 @@ function runAnimation() {
   const now = performance.now();
   if (!state.lastFrameTime) state.lastFrameTime = now;
   const dt = now - state.lastFrameTime;
+  state.lastFrameDt = dt;
   state.lastFrameTime = now;
 
   // Real flight time in hours (Distance km / Speed km/h)
@@ -723,7 +768,12 @@ function runAnimation() {
   const realSeconds = realHours * 3600;
 
   // Total animation time = real time / speed multiplier
-  const totalSec = Math.max(1, realSeconds / Math.max(0.1, state.animSpeed));
+  let totalSec;
+  if (state.targetDurationSeconds > 0) {
+    totalSec = state.targetDurationSeconds;
+  } else {
+    totalSec = Math.max(1, realSeconds / Math.max(0.1, state.animSpeed));
+  }
 
   state.animProgress += (dt / 1000) / totalSec;
 
@@ -747,6 +797,132 @@ function runAnimation() {
   } else {
     state.lastFrameTime = null;
   }
+}
+
+// ── Rain Engine ──────────────────────────────────────────
+function startRain() {
+  if (state.rainRunning) return;
+  state.rainRunning = true;
+  const canvas = document.getElementById('rain-canvas');
+  const ctx = canvas.getContext('2d');
+  const drops = [];
+  const MAX_DROPS = 600;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  function tickRain() {
+    if ((state.rainIntensity || 0) <= 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      state.rainRunning = false;
+      return;
+    }
+    requestAnimationFrame(tickRain);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const count = Math.floor(MAX_DROPS * state.rainIntensity);
+
+    // Spawn missing drops
+    while (drops.length < count) {
+      drops.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        len: 20 + Math.random() * 30, // Longer drops
+        speed: 12 + Math.random() * 15, // Faster
+        opacity: 0.4 + Math.random() * 0.6 // Much more opaque
+      });
+    }
+    // Remove excess
+    while (drops.length > count) drops.pop();
+
+    ctx.strokeStyle = 'rgba(220, 230, 255, 1)'; // Brighter color
+    ctx.lineWidth = 2.5; // Thicker lines
+    ctx.lineCap = 'round';
+
+    for (const d of drops) {
+      // Don't multiply by intensity twice if we want it visible even at low intensities
+      // Just use intensity for the number of drops, or a slight alpha scaling.
+      // E.g., min alpha 0.5 at lowest intensity to keep them visible.
+      ctx.globalAlpha = d.opacity * (0.5 + state.rainIntensity * 0.5); 
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + d.len * 0.15, d.y + d.len);
+      ctx.stroke();
+
+      d.y += d.speed;
+      d.x += d.speed * 0.15;
+      if (d.y > canvas.height) {
+        d.y = -d.len;
+        d.x = Math.random() * canvas.width;
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  tickRain();
+}
+
+// ── Snow Engine ──────────────────────────────────────────
+function startSnow() {
+  if (state.snowRunning) return;
+  state.snowRunning = true;
+  const canvas = document.getElementById('snow-canvas');
+  const ctx = canvas.getContext('2d');
+  const flakes = [];
+  const MAX_FLAKES = 400;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  function tickSnow() {
+    if ((state.snowIntensity || 0) <= 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      state.snowRunning = false;
+      return;
+    }
+    requestAnimationFrame(tickSnow);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const count = Math.floor(MAX_FLAKES * state.snowIntensity);
+
+    while (flakes.length < count) {
+      flakes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: 1.5 + Math.random() * 3.5,
+        speed: 0.5 + Math.random() * 2,
+        wobble: Math.random() * Math.PI * 2,
+        wobbleSpeed: 0.01 + Math.random() * 0.03,
+        opacity: 0.4 + Math.random() * 0.6
+      });
+    }
+    while (flakes.length > count) flakes.pop();
+
+    ctx.fillStyle = '#ffffff';
+    for (const f of flakes) {
+      ctx.globalAlpha = f.opacity * (0.5 + state.snowIntensity * 0.5);
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      f.y += f.speed;
+      f.wobble += f.wobbleSpeed;
+      f.x += Math.sin(f.wobble) * 0.5;
+      if (f.y > canvas.height + f.r) {
+        f.y = -f.r;
+        f.x = Math.random() * canvas.width;
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  tickSnow();
 }
 
 function placeTransportAtProgress(p) {
@@ -797,6 +973,34 @@ function placeTransportAtProgress(p) {
       .addTo(map);
   } else {
     state.transportMarker.setLngLat([targetLon, targetLat]);
+  }
+
+  if (state.smoothAnimation && state.animPlaying) {
+    if (state.lastSmoothedHeading === undefined) state.lastSmoothedHeading = vehicleHeading;
+    let turnDelta = vehicleHeading - state.lastSmoothedHeading;
+    while (turnDelta > 180) turnDelta -= 360;
+    while (turnDelta < -180) turnDelta += 360;
+    
+    // Time constant 250ms for smooth cinematic turns
+    const dt = state.lastFrameDt || 16;
+    // Smooth heading (time constant 250ms)
+    let alphaHeading = 1.0 - Math.exp(-dt / 250); 
+    state.lastSmoothedHeading += turnDelta * alphaHeading;
+    state.lastSmoothedHeading = (state.lastSmoothedHeading + 360) % 360;
+    vehicleHeading = state.lastSmoothedHeading;
+    
+    // Smooth position (time constant 400ms for cinematic corner cutting)
+    if (state.lastSmoothedLon === undefined) state.lastSmoothedLon = targetLon;
+    if (state.lastSmoothedLat === undefined) state.lastSmoothedLat = targetLat;
+    let alphaPos = 1.0 - Math.exp(-dt / 400);
+    state.lastSmoothedLon += (targetLon - state.lastSmoothedLon) * alphaPos;
+    state.lastSmoothedLat += (targetLat - state.lastSmoothedLat) * alphaPos;
+    targetLon = state.lastSmoothedLon;
+    targetLat = state.lastSmoothedLat;
+  } else {
+    state.lastSmoothedHeading = vehicleHeading;
+    state.lastSmoothedLon = targetLon;
+    state.lastSmoothedLat = targetLat;
   }
 
   // Calculate instantaneous heading

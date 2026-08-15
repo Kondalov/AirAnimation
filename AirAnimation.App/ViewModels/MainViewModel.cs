@@ -11,6 +11,7 @@ namespace AirAnimation.App.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly RouteService _routeService = new();
+    private readonly GeocodingService _geocodingService = new();
     private string? _currentFilePath;
 
     [ObservableProperty] private MapViewModel mapViewModel;
@@ -27,7 +28,7 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         MapViewModel        = new MapViewModel();
-        RouteViewModel      = new RouteViewModel(_routeService);
+        RouteViewModel      = new RouteViewModel(_routeService, _geocodingService);
         TransportViewModel  = new TransportViewModel();
         AnimationViewModel  = new AnimationViewModel();
         ExportViewModel     = new ExportViewModel();
@@ -37,6 +38,7 @@ public sealed partial class MainViewModel : ObservableObject
         TransportViewModel.TransportChanged += OnTransportChanged;
         TransportViewModel.TransportSizeChanged += OnTransportSizeChanged;
         RouteViewModel.RouteUpdated += OnRouteUpdated;
+        RouteViewModel.BoundsRequested += async (_, _) => await MapViewModel.FitBoundsAsync();
     }
 
     private async void OnTransportChanged(object? sender, TransportModel transport)
@@ -147,6 +149,9 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task PlayAnimationAsync()
     {
         AnimationViewModel.IsPlaying = true;
+        
+        double? targetDuration = AnimationViewModel.UseTargetDuration ? AnimationViewModel.TargetDurationSeconds : null;
+        
         await MapViewModel.PlayAsync(
             AnimationViewModel.SpeedMultiplier,
             AnimationViewModel.CameraFollow,
@@ -154,7 +159,9 @@ public sealed partial class MainViewModel : ObservableObject
             AnimationViewModel.CameraMode,
             AnimationViewModel.CameraZoom,
             AnimationViewModel.CameraBearingOffset,
-            AnimationViewModel.EnableSpaceIntro);
+            AnimationViewModel.EnableSpaceIntro,
+            targetDuration);
+            
         StatusMessage = "Воспроизведение 3D анимации...";
     }
 

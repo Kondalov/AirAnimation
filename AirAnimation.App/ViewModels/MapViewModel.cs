@@ -42,8 +42,8 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task RemoveWaypointAsync(string id) => _bridge.RemoveWaypointAsync(id);
 
-    public Task PlayAsync(double speed, bool follow, double pitch, string mode = "follow", double zoom = 7.5, double bearingOffset = 0, bool globeIntro = false) =>
-        _bridge.PlayAnimationAsync(speed, follow, pitch, mode, zoom, bearingOffset, globeIntro);
+    public Task PlayAsync(double speed, bool follow, double pitch, string mode = "follow", double zoom = 7.5, double bearingOffset = 0, bool globeIntro = false, double? targetDurationSeconds = null) =>
+        _bridge.PlayAnimationAsync(speed, follow, pitch, mode, zoom, bearingOffset, globeIntro, targetDurationSeconds);
 
     public Task PauseAsync() => _bridge.PauseAnimationAsync();
 
@@ -57,8 +57,8 @@ public sealed partial class MapViewModel : ObservableObject
     public Task SetRouteSettingsAsync(string drawMode, string trailStyle) =>
         _bridge.SetRouteSettingsAsync(drawMode, trailStyle);
 
-    public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking) =>
-        _bridge.SetOrientationSettingsAsync(mode, angleOffset, altitude, banking);
+    public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking, bool smoothAnimation = false) =>
+        _bridge.SetOrientationSettingsAsync(mode, angleOffset, altitude, banking, smoothAnimation);
 
     public Task SeekAsync(double progress) => _bridge.SeekAnimationAsync(progress);
 

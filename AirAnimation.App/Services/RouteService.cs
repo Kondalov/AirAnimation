@@ -16,7 +16,10 @@ public sealed class RouteService : IDisposable
     public async Task<RouteSegment> GetSegmentAsync(
         Waypoint from, Waypoint to, string profile, CancellationToken ct = default)
     {
-        // profile: driving | walking | cycling
+        // profile: driving | walking | cycling | flight
+        if (profile == "flight")
+            return BuildArcPath(from, to);
+
         var url = $"{OsrmBase}/{profile}/{from.Longitude},{from.Latitude};{to.Longitude},{to.Latitude}?overview=full&geometries=geojson";
 
         try
@@ -26,7 +29,7 @@ public sealed class RouteService : IDisposable
             var root = doc.RootElement;
 
             if (root.GetProperty("code").GetString() != "Ok")
-                return BuildStraightLine(from, to);
+                return BuildArcPath(from, to);
 
             var route = root.GetProperty("routes")[0];
             var distance = route.GetProperty("distance").GetDouble();
@@ -69,23 +72,15 @@ public sealed class RouteService : IDisposable
         }
         catch
         {
-            return BuildStraightLine(from, to);
+            return BuildArcPath(from, to);
         }
     }
 
-    /// <summary>Builds a great-circle interpolated path (100 steps) between two points.</summary>
-    private static RouteSegment BuildStraightLine(Waypoint from, Waypoint to)
+    /// <summary>Builds a smooth parabolic arc path between two points.</summary>
+    private static RouteSegment BuildArcPath(Waypoint from, Waypoint to)
     {
         const int steps = 100;
         var coords = new List<double[]>(steps + 1);
-        for (int i = 0; i <= steps; i++)
-        {
-            double t = (double)i / steps;
-            coords.Add([
-                from.Longitude + (to.Longitude - from.Longitude) * t,
-                from.Latitude  + (to.Latitude  - from.Latitude)  * t
-            ]);
-        }
 
         double dLat = (to.Latitude - from.Latitude) * Math.PI / 180;
         double dLon = (to.Longitude - from.Longitude) * Math.PI / 180;
@@ -94,13 +89,34 @@ public sealed class RouteService : IDisposable
                  * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
         double dist = 6_371_000 * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 
+        // Control point for quadratic bezier (curve upwards like TravelBoast)
+        double distDegrees = Math.Sqrt(Math.Pow(to.Longitude - from.Longitude, 2) + Math.Pow(to.Latitude - from.Latitude, 2));
+        double ctrlLon = (from.Longitude + to.Longitude) / 2;
+        
+        // Offset latitude upwards to create an arc
+        // The longer the distance, the higher the arc. Cap the offset so it doesn't go crazy on very long flights.
+        double offset = Math.Min(distDegrees * 0.25, 20.0);
+        double ctrlLat = (from.Latitude + to.Latitude) / 2 + offset;
+
+        for (int i = 0; i <= steps; i++)
+        {
+            double t = (double)i / steps;
+            double u = 1 - t;
+            
+            // Quadratic Bezier formula: (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+            double lon = u * u * from.Longitude + 2 * u * t * ctrlLon + t * t * to.Longitude;
+            double lat = u * u * from.Latitude  + 2 * u * t * ctrlLat + t * t * to.Latitude;
+            
+            coords.Add([lon, lat]);
+        }
+
         return new RouteSegment
         {
             FromWaypointId = from.Id,
             ToWaypointId = to.Id,
             Coordinates = coords,
             DistanceMeters = dist,
-            DurationSeconds = dist / 15 // rough estimate
+            DurationSeconds = dist / 250 // faster speed estimate for planes
         };
     }
 
