@@ -634,9 +634,9 @@ window.bridge = {
     updateTrail(state.animProgress);
     updateHud(state.animProgress);
     if (state.exportMode && dtMs) {
-      if (state.cloudOpacity > 0 && window.stepClouds) window.stepClouds(dtMs);
-      if (state.rainIntensity > 0 && window.stepRain) window.stepRain(dtMs);
-      if (state.snowIntensity > 0 && window.stepSnow) window.stepSnow(dtMs);
+      if (window.stepClouds) window.stepClouds(dtMs);
+      if (window.stepRain) window.stepRain(dtMs);
+      if (window.stepSnow) window.stepSnow(dtMs);
     }
   },
 
@@ -970,8 +970,11 @@ function startClouds() {
   };
   
   function tickClouds() {
-    if (state.exportMode) return; // Stop loop if exporting
-    if (window.stepClouds(16.666)) {
+    let active = true;
+    if (!state.exportMode) {
+      active = window.stepClouds(16.666);
+    }
+    if (active) {
       requestAnimationFrame(tickClouds);
     }
   }
@@ -1044,8 +1047,11 @@ function startRain() {
   };
 
   function tickRain() {
-    if (state.exportMode) return; // Stop loop if exporting
-    if (window.stepRain(16.666)) {
+    let active = true;
+    if (!state.exportMode) {
+      active = window.stepRain(16.666);
+    }
+    if (active) {
       requestAnimationFrame(tickRain);
     }
   }
@@ -1114,8 +1120,11 @@ function startSnow() {
   };
 
   function tickSnow() {
-    if (state.exportMode) return; // Stop loop if exporting
-    if (window.stepSnow(16.666)) {
+    let active = true;
+    if (!state.exportMode) {
+      active = window.stepSnow(16.666);
+    }
+    if (active) {
       requestAnimationFrame(tickSnow);
     }
   }
