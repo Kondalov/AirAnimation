@@ -60,7 +60,9 @@ public sealed partial class MapViewModel : ObservableObject
     public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking, bool smoothAnimation = false) =>
         _bridge.SetOrientationSettingsAsync(mode, angleOffset, altitude, banking, smoothAnimation);
 
-    public Task SeekAsync(double progress) => _bridge.SeekAnimationAsync(progress);
+    public Task SeekAsync(double progress, double? dtMs = null) => _bridge.SeekAnimationAsync(progress, dtMs);
+
+    public Task SetExportModeAsync(bool isExporting) => _bridge.SetExportModeAsync(isExporting);
 
     public Task SetHudVisibilityAsync(bool visible) => _bridge.SetHudVisibilityAsync(visible);
 

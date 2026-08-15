@@ -99,7 +99,10 @@ public sealed partial class ExportViewModel : ObservableObject
             int totalFrames = (int)Math.Max(30, durationSec * Fps);
 
             if (_mapVm != null)
+            {
+                await _mapVm.SetExportModeAsync(true);
                 await _mapVm.SetHudVisibilityAsync(IncludeHud);
+            }
 
             // Step 1: Deterministic Frame Capture
             for (int i = 0; i < totalFrames; i++)
@@ -108,7 +111,8 @@ public sealed partial class ExportViewModel : ObservableObject
                 
                 if (_mapVm != null)
                 {
-                    await _mapVm.SeekAsync(p);
+                    double dtMs = 1000.0 / Fps;
+                    await _mapVm.SeekAsync(p, dtMs);
                     await Task.Delay(25); // allow canvas render
 
                     var framePath = Path.Combine(framesDir, $"frame_{i:D4}.png");
@@ -149,6 +153,9 @@ public sealed partial class ExportViewModel : ObservableObject
         finally
         {
             IsExporting = false;
+            if (_mapVm != null)
+                await _mapVm.SetExportModeAsync(false);
+
             // Clean up temporary frame folder
             if (Directory.Exists(framesDir))
             {

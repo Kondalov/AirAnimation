@@ -114,8 +114,11 @@ public sealed class MapBridgeService
     public Task SetOrientationSettingsAsync(string mode, double angleOffset, double altitude, bool banking, bool smoothAnimation = false) =>
         ExecAsync("setOrientationSettings", new { mode, angleOffset, altitude, banking, smoothAnimation });
 
-    public Task SeekAnimationAsync(double progress) =>
-        ExecAsync("seekAnimation", new { progress });
+    public Task SeekAnimationAsync(double progress, double? dtMs = null) =>
+        ExecAsync("seekAnimation", new { progress, dtMs });
+
+    public Task SetExportModeAsync(bool isExporting) =>
+        ExecAsync("setExportMode", new { isExporting });
 
     public Task SetHudVisibilityAsync(bool visible) =>
         ExecAsync("setHudVisibility", new { visible });
