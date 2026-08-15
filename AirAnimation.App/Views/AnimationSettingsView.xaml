@@ -239,6 +239,31 @@
                     <Slider Minimum="0" Maximum="1"
                             Value="{Binding SnowIntensity, Mode=TwoWay}"
                             IsMoveToPointEnabled="True"
+                            SmallChange="0.05" LargeChange="0.2"
+                            Margin="0,0,0,12"/>
+
+                    <!-- Lightning controls -->
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="⚡ Количество молний:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="11">
+                            <Run Text="{Binding LightningIntensity, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="0" Maximum="1"
+                            Value="{Binding LightningIntensity, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
+                            SmallChange="0.05" LargeChange="0.2"
+                            Margin="0,0,0,12"/>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="⚡ Скорость молний:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="11">
+                            <Run Text="{Binding LightningSpeed, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+                    <Slider Minimum="0" Maximum="1"
+                            Value="{Binding LightningSpeed, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True"
                             SmallChange="0.05" LargeChange="0.2"/>
                 </StackPanel>
             </Border>

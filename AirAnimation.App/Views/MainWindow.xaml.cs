@@ -73,6 +73,12 @@ public partial class MainWindow : Window
             vm.AnimationViewModel.SnowIntensityChanged += async (_, intensity) =>
                 await vm.MapViewModel.Bridge.SetSnowIntensityAsync(intensity);
 
+            vm.AnimationViewModel.LightningIntensityChanged += async (_, intensity) =>
+                await vm.MapViewModel.Bridge.SetLightningSettingsAsync(intensity, vm.AnimationViewModel.LightningSpeed);
+
+            vm.AnimationViewModel.LightningSpeedChanged += async (_, speed) =>
+                await vm.MapViewModel.Bridge.SetLightningSettingsAsync(vm.AnimationViewModel.LightningIntensity, speed);
+
             // Animation progress & completion → AnimationViewModel
             vm.MapViewModel.Bridge.AnimationProgressChanged += (_, p) =>
             {

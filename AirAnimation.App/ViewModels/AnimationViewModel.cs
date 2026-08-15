@@ -43,11 +43,15 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private double cloudOpacity = 0.0; // 0.0 to 1.0
     [ObservableProperty] private double rainIntensity = 0.0; // 0.0 to 1.0
     [ObservableProperty] private double snowIntensity = 0.0; // 0.0 to 1.0
+    [ObservableProperty] private double lightningIntensity = 0.0; // 0.0 to 1.0
+    [ObservableProperty] private double lightningSpeed = 0.5; // 0.0 to 1.0
 
     public event EventHandler<double>? SpeedChanged;
     public event EventHandler<double>? CloudOpacityChanged;
     public event EventHandler<double>? RainIntensityChanged;
     public event EventHandler<double>? SnowIntensityChanged;
+    public event EventHandler<double>? LightningIntensityChanged;
+    public event EventHandler<double>? LightningSpeedChanged;
     public event EventHandler<bool>? ShowCityPopupsChanged;
     public event EventHandler<CameraSettingsEventArgs>? CameraChanged;
     public event EventHandler<RouteSettingsEventArgs>? RouteSettingsChanged;
@@ -69,6 +73,8 @@ public sealed partial class AnimationViewModel : ObservableObject
     partial void OnCloudOpacityChanged(double value) => CloudOpacityChanged?.Invoke(this, value);
     partial void OnRainIntensityChanged(double value) => RainIntensityChanged?.Invoke(this, value);
     partial void OnSnowIntensityChanged(double value) => SnowIntensityChanged?.Invoke(this, value);
+    partial void OnLightningIntensityChanged(double value) => LightningIntensityChanged?.Invoke(this, value);
+    partial void OnLightningSpeedChanged(double value) => LightningSpeedChanged?.Invoke(this, value);
     
     partial void OnShowCityPopupsChanged(bool value) => ShowCityPopupsChanged?.Invoke(this, value);
 

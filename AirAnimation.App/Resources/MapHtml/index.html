@@ -133,6 +133,7 @@
 <canvas id="clouds-canvas"></canvas>
 <canvas id="rain-canvas" class="weather-canvas"></canvas>
 <canvas id="snow-canvas" class="weather-canvas"></canvas>
+<canvas id="lightning-canvas" class="weather-canvas"></canvas>
 <div id="city-popup"></div>
 <div id="hud" style="display:none">
   <div class="hud-card">
@@ -702,6 +703,12 @@ window.bridge = {
     if (intensity > 0 && !state.snowRunning) startSnow();
   },
 
+  setLightningSettings({ intensity, speed }) {
+    state.lightningIntensity = intensity;
+    state.lightningSpeed = speed;
+    if (intensity > 0 && !state.lightningRunning) startLightning();
+  },
+
   setMapStyle({ styleUrl }) {
     const key = styleUrl || 'dark';
     const style = STYLES[key] || DARK_STYLE;
@@ -784,6 +791,7 @@ window.bridge = {
       if (state.cloudOpacity > 0) startClouds();
       if (state.rainIntensity > 0) startRain();
       if (state.snowIntensity > 0) startSnow();
+      if (state.lightningIntensity > 0) startLightning();
     }
   },
 
@@ -797,6 +805,7 @@ window.bridge = {
       if (window.stepClouds) window.stepClouds(dtMs);
       if (window.stepRain) window.stepRain(dtMs);
       if (window.stepSnow) window.stepSnow(dtMs);
+      if (window.stepLightning) window.stepLightning(dtMs);
     }
   },
 
@@ -1387,6 +1396,10 @@ function placeTransportAtProgress(p) {
 
   if (isNaN(targetLon) || isNaN(targetLat)) return;
 
+  if (isNaN(targetLon) || isNaN(targetLat)) return;
+
+  if (isNaN(targetLon) || isNaN(targetLat)) return;
+
   if (!state.transportMarker) {
     state.transportMarker = new maplibregl.Marker({ 
       element: createTransportDOM(),
@@ -1483,6 +1496,8 @@ function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {
   let opts = {
     center: [targetLon, targetLat]
   };
+
+  if (isNaN(targetLon) || isNaN(targetLat)) return;
   
   if (isNaN(targetLon) || isNaN(targetLat)) return;
 
@@ -1603,6 +1618,163 @@ function postMessage(data) {
 function defaultPlaneSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M 60 14 C 68 14 73 30 72 58 C 71 86 66 106 60 110 C 54 106 49 86 48 58 C 47 30 52 14 60 14 Z" fill="#3B82F6" stroke="#0F172A" stroke-width="2.5"/><path d="M 60 44 L 110 58 L 102 70 L 60 56 L 18 70 L 10 58 Z" fill="#2563EB" stroke="#0F172A" stroke-width="2.5"/></svg>`;
 }
+
+
+// ── Lightning Engine ──────────────────────────────────────────
+function startLightning() {
+  if (state.lightningRunning) return;
+  state.lightningRunning = true;
+  const canvas = document.getElementById('lightning-canvas');
+  const ctx = canvas.getContext('2d');
+  
+  // Lightning state
+  let strikes = [];
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  function generateLightning(x, y, endX, endY, branchProb) {
+    let segments = [{x1: x, y1: y, x2: endX, y2: endY}];
+    const iterations = 5;
+    const offsetBase = 120;
+    
+    for (let i = 0; i < iterations; i++) {
+      let newSegments = [];
+      const offset = offsetBase / Math.pow(2, i);
+      
+      for (const seg of segments) {
+        const midX = (seg.x1 + seg.x2) / 2;
+        const midY = (seg.y1 + seg.y2) / 2;
+        
+        const nx = seg.y2 - seg.y1;
+        const ny = -(seg.x2 - seg.x1);
+        const len = Math.sqrt(nx*nx + ny*ny);
+        
+        let dx = 0, dy = 0;
+        if (len > 0) {
+           dx = (nx / len) * (Math.random() * 2 - 1) * offset;
+           dy = (ny / len) * (Math.random() * 2 - 1) * offset;
+        }
+        
+        const newMidX = midX + dx;
+        const newMidY = midY + dy;
+        
+        newSegments.push({x1: seg.x1, y1: seg.y1, x2: newMidX, y2: newMidY});
+        newSegments.push({x1: newMidX, y1: newMidY, x2: seg.x2, y2: seg.y2});
+        
+        // Random branching
+        if (Math.random() < branchProb) {
+           const branchAngle = (Math.random() * 60 - 30) * Math.PI / 180;
+           const bx = Math.cos(branchAngle) * (seg.x2 - newMidX) - Math.sin(branchAngle) * (seg.y2 - newMidY);
+           const by = Math.sin(branchAngle) * (seg.x2 - newMidX) + Math.cos(branchAngle) * (seg.y2 - newMidY);
+           newSegments.push({x1: newMidX, y1: newMidY, x2: newMidX + bx * 0.7, y2: newMidY + by * 0.7});
+        }
+      }
+      segments = newSegments;
+    }
+    return segments;
+  }
+
+  window.stepLightning = function(dtMs) {
+    if ((state.lightningIntensity || 0) <= 0 && strikes.length === 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      state.lightningRunning = false;
+      return false;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Spawn logic (60fps assumed if dtMs=16.6)
+    // Intensity 0.0 - 1.0. At 1.0, spawn probability is ~0.05 per frame (3 per second).
+    const prob = (state.lightningIntensity || 0) * 0.04 * (dtMs / 16.666);
+    if (Math.random() < prob) {
+       const startX = Math.random() * canvas.width;
+       const startY = -50;
+       const endX = startX + (Math.random() * 400 - 200);
+       const endY = canvas.height * (0.6 + Math.random() * 0.4);
+       
+       strikes.push({
+         segments: generateLightning(startX, startY, endX, endY, 0.4),
+         life: 1.0, // Decays to 0
+         maxLife: 1.0,
+         flashAlpha: 1.0,
+         seed: Math.random()
+       });
+    }
+
+    // Decay speed (speed 0.0 - 1.0).
+    // 0 = slow (0.01 per frame), 1.0 = fast (0.1 per frame)
+    const speedParam = state.lightningSpeed !== undefined ? state.lightningSpeed : 0.5;
+    const decayRate = (0.01 + speedParam * 0.07) * (dtMs / 16.666);
+
+    for (let i = strikes.length - 1; i >= 0; i--) {
+      const strike = strikes[i];
+      strike.life -= decayRate;
+      
+      if (strike.life <= 0) {
+        strikes.splice(i, 1);
+        continue;
+      }
+
+      // Draw flash overlay
+      if (strike.life > 0.8 && state.lightningIntensity > 0.2) {
+        ctx.fillStyle = `rgba(220, 240, 255, ${(strike.life - 0.8) * 1.5})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Flicker effect
+      if (Math.random() > strike.life) continue;
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      const alpha = Math.max(0, strike.life);
+      ctx.globalCompositeOperation = 'lighter';
+      
+      // Core white bolt
+      ctx.beginPath();
+      for (const seg of strike.segments) {
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+      }
+      
+      // Outer glow
+      ctx.shadowColor = '#60a5fa';
+      ctx.shadowBlur = 20;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      // Inner core
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#fff';
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+    
+    return true;
+  };
+
+  function tickLightning() {
+    let active = true;
+    if (!state.exportMode) {
+      active = window.stepLightning(16.666);
+    }
+    if (active) {
+      requestAnimationFrame(tickLightning);
+    }
+  }
+  tickLightning();
+}
+
 </script>
 </body>
 </html>
