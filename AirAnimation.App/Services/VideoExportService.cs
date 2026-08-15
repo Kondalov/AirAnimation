@@ -22,7 +22,12 @@ public sealed class VideoExportService
         string OutputPath,
         ExportPreset Preset,
         VideoQuality Quality,
-        int Fps = 30);
+        int Fps = 30,
+        bool EnableSounds = false,
+        double RainIntensity = 0,
+        double LightningIntensity = 0,
+        double SnowIntensity = 0,
+        double CloudOpacity = 0);
 
     public static (int Width, int Height) GetDimensions(ExportPreset preset, VideoQuality quality)
     {
@@ -61,27 +66,44 @@ public sealed class VideoExportService
         CancellationToken ct = default)
     {
         var (w, h) = GetDimensions(opts.Preset, opts.Quality);
-        var pattern = Path.Combine(opts.FramesDirectory, "frame_%04d.png");
+        var pattern = Path.Combine(opts.FramesDirectory, "frame_%04d.jpg");
+        var bitrate = opts.Quality == VideoQuality.UHD4K ? "20000k" : "8000k";
+        var soundDir = Path.Combine(AppContext.BaseDirectory, "Resources", "Sound");
 
-        var success = await FFMpegArguments
-            .FromFileInput(pattern, verifyExists: false, o =>
-            {
-                o.WithFramerate(opts.Fps);
-                o.ForceFormat("image2");
-            })
-            .OutputToFile(opts.OutputPath, overwrite: true, o =>
-            {
-                o.WithVideoCodec(VideoCodec.LibX264);
-                o.WithConstantRateFactor(18);
-                o.ForcePixelFormat("yuv420p");
-                o.WithVideoBitrate(opts.Quality == VideoQuality.UHD4K ? 20000 : 8000);
-                o.Resize(w, h);
-                o.WithFramerate(opts.Fps);
-                o.WithFastStart();
-            })
-            .CancellableThrough(ct)
-            .ProcessAsynchronously();
+        var args = $"-y -framerate {opts.Fps} -f image2 -i \"{pattern}\" ";
 
-        return success;
+        if (opts.EnableSounds)
+        {
+            args += $"-stream_loop -1 -i \"{Path.Combine(soundDir, "airplane.mp3")}\" ";
+            args += $"-stream_loop -1 -i \"{Path.Combine(soundDir, "rain.mp3")}\" ";
+            args += $"-stream_loop -1 -i \"{Path.Combine(soundDir, "wind.mp3")}\" ";
+
+            var vRain = (opts.RainIntensity * 0.8).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var vWind = Math.Min(1.0, (opts.SnowIntensity * 0.8) + (opts.CloudOpacity * 0.3)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            args += $"-filter_complex \"[1:a]volume=1.0[a1];[2:a]volume={vRain}[a2];[3:a]volume={vWind}[a3];[a1][a2][a3]amix=inputs=3:duration=first:dropout_transition=0[aout]\" ";
+            args += $"-map 0:v -map \"[aout]\" -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -c:a aac -b:v {bitrate} -s {w}x{h} -shortest \"{opts.OutputPath}\"";
+        }
+        else
+        {
+            args += $"-c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -b:v {bitrate} -s {w}x{h} \"{opts.OutputPath}\"";
+        }
+
+        using var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Path.Combine(FfmpegDirectory, "ffmpeg.exe"),
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        ct.Register(() => { try { process.Kill(); } catch { } });
+        process.Start();
+        await process.WaitForExitAsync(ct);
+
+        return process.ExitCode == 0;
     }
 }

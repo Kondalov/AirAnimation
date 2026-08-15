@@ -100,8 +100,11 @@ public sealed partial class ExportViewModel : ObservableObject
 
             if (_mapVm != null)
             {
+                var (w, h) = VideoExportService.GetDimensions(SelectedPreset, SelectedQuality);
+                _mapVm.SetViewportSize(w, h);
                 await _mapVm.SetExportModeAsync(true);
                 await _mapVm.SetHudVisibilityAsync(IncludeHud);
+                await Task.Delay(250); // allow resize to take effect
             }
 
             // Step 1: Deterministic Frame Capture
@@ -115,7 +118,7 @@ public sealed partial class ExportViewModel : ObservableObject
                     await _mapVm.SeekAsync(p, dtMs);
                     await Task.Delay(25); // allow canvas render
 
-                    var framePath = Path.Combine(framesDir, $"frame_{i:D4}.png");
+                    var framePath = Path.Combine(framesDir, $"frame_{i:D4}.jpg");
                     await using (var fs = File.Create(framePath))
                     {
                         await _mapVm.CapturePreviewAsync(fs);
@@ -131,7 +134,16 @@ public sealed partial class ExportViewModel : ObservableObject
             VideoExportService.Configure();
 
             var opts = new VideoExportService.ExportOptions(
-                framesDir, dlg.FileName, SelectedPreset, SelectedQuality, Fps);
+                framesDir, 
+                dlg.FileName, 
+                SelectedPreset, 
+                SelectedQuality, 
+                Fps,
+                _animVm?.EnableSounds ?? false,
+                _animVm?.RainIntensity ?? 0,
+                _animVm?.LightningIntensity ?? 0,
+                _animVm?.SnowIntensity ?? 0,
+                _animVm?.CloudOpacity ?? 0);
 
             var prog = new Progress<double>(p =>
             {
@@ -154,8 +166,10 @@ public sealed partial class ExportViewModel : ObservableObject
         {
             IsExporting = false;
             if (_mapVm != null)
+            {
+                _mapVm.ResetViewportSize();
                 await _mapVm.SetExportModeAsync(false);
-
+            }
             // Clean up temporary frame folder
             if (Directory.Exists(framesDir))
             {

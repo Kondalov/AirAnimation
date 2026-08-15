@@ -37,6 +37,9 @@ public sealed partial class AnimationViewModel : ObservableObject
     [ObservableProperty] private bool showCityLabels = true;
     [ObservableProperty] private bool showCountryFlags = true;
     [ObservableProperty] private bool showCityPopups = false;
+    [ObservableProperty] private double cityPopupFontSize = 18.0;
+    [ObservableProperty] private double cityPopupOpacity = 0.8;
+    [ObservableProperty] private bool enableSounds = false;
     [ObservableProperty] private double progress;          // 0..1
     [ObservableProperty] private double totalDistanceKm;
     [ObservableProperty] private bool isPlaying;
@@ -52,7 +55,12 @@ public sealed partial class AnimationViewModel : ObservableObject
     public event EventHandler<double>? SnowIntensityChanged;
     public event EventHandler<double>? LightningIntensityChanged;
     public event EventHandler<double>? LightningSpeedChanged;
+    public event EventHandler<bool>? ShowCityLabelsChanged;
+    public event EventHandler<bool>? ShowCountryFlagsChanged;
     public event EventHandler<bool>? ShowCityPopupsChanged;
+    public event EventHandler<double>? CityPopupFontSizeChanged;
+    public event EventHandler<double>? CityPopupOpacityChanged;
+    public event EventHandler<bool>? EnableSoundsChanged;
     public event EventHandler<CameraSettingsEventArgs>? CameraChanged;
     public event EventHandler<RouteSettingsEventArgs>? RouteSettingsChanged;
     public event EventHandler<OrientationSettingsEventArgs>? OrientationSettingsChanged;
@@ -75,8 +83,12 @@ public sealed partial class AnimationViewModel : ObservableObject
     partial void OnSnowIntensityChanged(double value) => SnowIntensityChanged?.Invoke(this, value);
     partial void OnLightningIntensityChanged(double value) => LightningIntensityChanged?.Invoke(this, value);
     partial void OnLightningSpeedChanged(double value) => LightningSpeedChanged?.Invoke(this, value);
-    
+    partial void OnShowCityLabelsChanged(bool value) => ShowCityLabelsChanged?.Invoke(this, value);
+    partial void OnShowCountryFlagsChanged(bool value) => ShowCountryFlagsChanged?.Invoke(this, value);
     partial void OnShowCityPopupsChanged(bool value) => ShowCityPopupsChanged?.Invoke(this, value);
+    partial void OnCityPopupFontSizeChanged(double value) => CityPopupFontSizeChanged?.Invoke(this, value);
+    partial void OnCityPopupOpacityChanged(double value) => CityPopupOpacityChanged?.Invoke(this, value);
+    partial void OnEnableSoundsChanged(bool value) => EnableSoundsChanged?.Invoke(this, value);
 
     partial void OnMapStyleChanged(string value) => MapStyleChanged?.Invoke(this, value);
 

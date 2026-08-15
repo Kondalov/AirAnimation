@@ -18,6 +18,7 @@ public sealed class MapBridgeService
     public event EventHandler<MapClickArgs>? MapClicked;
     public event EventHandler<WaypointMovedArgs>? WaypointMoved;
     public event EventHandler<InsertWaypointArgs>? WaypointInserted;
+    public event EventHandler? LightningStrike;
     public event EventHandler? MapReady;
     public event EventHandler<double>? AnimationProgressChanged;
 
@@ -67,6 +68,10 @@ public sealed class MapBridgeService
                     var ilon = doc.RootElement.GetProperty("lon").GetDouble();
                     var idx = doc.RootElement.GetProperty("index").GetInt32();
                     WaypointInserted?.Invoke(this, new InsertWaypointArgs(ilat, ilon, idx));
+                    break;
+                    
+                case "lightningStrike":
+                    LightningStrike?.Invoke(this, EventArgs.Empty);
                     break;
             }
         }
@@ -143,6 +148,12 @@ public sealed class MapBridgeService
     public Task SetLightningSettingsAsync(double intensity, double speed) =>
         ExecAsync("setLightningSettings", new { intensity, speed });
 
+    public Task SetCityPopupSettingsAsync(double fontSize, double opacity) =>
+        ExecAsync("setCityPopupSettings", new { fontSize, opacity });
+
+    public Task SetMarkerVisibilityAsync(bool showLabels, bool showFlags) =>
+        ExecAsync("setMarkerVisibility", new { showLabels, showFlags });
+
     public Task SetCityPopupsAsync(bool show) =>
         ExecAsync("setCityPopups", show);
 
@@ -153,7 +164,7 @@ public sealed class MapBridgeService
     {
         if (_webView?.CoreWebView2 is { } core)
         {
-            await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+            await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Jpeg, stream);
         }
     }
 

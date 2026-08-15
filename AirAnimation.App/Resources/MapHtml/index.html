@@ -153,29 +153,17 @@
   </div>
 </div>
 
+<div id="vertical-overlay" style="position: absolute; top: 15%; left: 0; width: 100%; text-align: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.8s ease;">
+   <div id="vertical-overlay-text" style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 80px; font-weight: 800; color: white; text-shadow: 0 4px 24px rgba(0,0,0,0.9); padding: 24px 48px; display: inline-block; background: rgba(0,0,0,0.3); border-radius: 24px; backdrop-filter: blur(12px); border: 2px solid rgba(255,255,255,0.1);">
+   </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════════
 //  MAP CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
-const DARK_STYLE = {
-  version: 8,
-  name: 'AirAnimation Dark 3D',
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© CARTO',
-      maxzoom: 19
-    }
-  },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#0b0e14' } },
-    { id: 'tiles', type: 'raster', source: 'osm',
-      paint: { 'raster-opacity': 1 } }
-  ]
-};
+const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 
 const SATELLITE_STYLE = {
   version: 8,
@@ -191,23 +179,6 @@ const SATELLITE_STYLE = {
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#000' } },
     { id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 } }
-  ]
-};
-
-const LIGHT_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© CARTO',
-      maxzoom: 19
-    }
-  },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#f8f8f8' } },
-    { id: 'tiles', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1 } }
   ]
 };
 
@@ -709,9 +680,37 @@ window.bridge = {
     if (intensity > 0 && !state.lightningRunning) startLightning();
   },
 
-  setMapStyle({ styleUrl }) {
+  async setMapStyle({ styleUrl }) {
+    if (!map) return;
     const key = styleUrl || 'dark';
     const style = STYLES[key] || DARK_STYLE;
+    
+    // Check if it's a vector style URL we can patch for Russian language
+    if (typeof style === 'string' && style.endsWith('.json')) {
+      try {
+        const res = await fetch(style);
+        const styleJson = await res.json();
+        
+        // Patch text-field to prioritize Russian language (name:ru) falling back to local (name)
+        if (styleJson.layers) {
+          styleJson.layers.forEach(layer => {
+            if (layer.layout && layer.layout['text-field']) {
+              const tf = layer.layout['text-field'];
+              const str = JSON.stringify(tf);
+              if (str.includes('name_en') || str.includes('{name}')) {
+                 layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
+              }
+            }
+          });
+        }
+        map.setStyle(styleJson);
+        map.once('styledata', () => { rebuildLayers(); });
+        return;
+      } catch (e) {
+        console.warn('Failed to localize style, using raw URL', e);
+      }
+    }
+    
     map.setStyle(style);
     map.once('styledata', () => { rebuildLayers(); });
   },
@@ -1589,6 +1588,38 @@ function updateHud(p) {
   } else {
     document.getElementById('hud-time').textContent =
       String(m).padStart(2,'0') + ':' + String(virtualElapsed % 60).padStart(2,'0');
+  }
+
+  updateVerticalOverlay(p);
+}
+
+function updateVerticalOverlay(p) {
+  const overlay = document.getElementById('vertical-overlay');
+  const overlayText = document.getElementById('vertical-overlay-text');
+  
+  if (!overlay || !overlayText || !state.exportMode || !state.waypoints || state.waypoints.length < 2) {
+    if (overlay) overlay.style.opacity = 0;
+    return;
+  }
+  
+  // Only show if window is vertical (height > width) e.g. YouTube Shorts
+  if (window.innerHeight <= window.innerWidth) {
+    overlay.style.opacity = 0;
+    return;
+  }
+  
+  // Show start city in first 15%
+  if (p < 0.15) {
+    overlayText.textContent = state.waypoints[0].label;
+    overlay.style.opacity = 1;
+  } 
+  // Show end city in last 15%
+  else if (p > 0.85) {
+    overlayText.textContent = state.waypoints[state.waypoints.length - 1].label;
+    overlay.style.opacity = 1;
+  } 
+  else {
+    overlay.style.opacity = 0;
   }
 }
 

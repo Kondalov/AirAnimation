@@ -64,6 +64,10 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task SetExportModeAsync(bool isExporting) => _bridge.SetExportModeAsync(isExporting);
 
+    public event EventHandler<(int Width, int Height)>? ViewportSizeChanged;
+    public void SetViewportSize(int width, int height) => ViewportSizeChanged?.Invoke(this, (width, height));
+    public void ResetViewportSize() => ViewportSizeChanged?.Invoke(this, (-1, -1));
+
     public Task SetSnowIntensityAsync(double intensity) => _bridge.SetSnowIntensityAsync(intensity);
     
     public Task SetCityPopupsAsync(bool show) => _bridge.SetCityPopupsAsync(show);

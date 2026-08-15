@@ -204,7 +204,40 @@
                               IsChecked="{Binding ShowCountryFlags, Mode=TwoWay}"/>
                     <CheckBox Content="Всплывающие города"
                               IsChecked="{Binding ShowCityPopups, Mode=TwoWay}"
-                              Margin="0,0,0,12"/>
+                              Margin="0,0,0,4"/>
+                    <CheckBox IsChecked="{Binding EnableSounds, Mode=TwoWay}"
+                              Margin="0,8,0,4">
+                        <TextBlock Text="Включить звуковые эффекты (SFX)" 
+                                   Foreground="{StaticResource AccentBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                    </CheckBox>
+
+                    <StackPanel Visibility="{Binding ShowCityPopups, Converter={StaticResource BoolToVis}}" Margin="24,0,0,12">
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock Text="Размер шрифта:" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="10">
+                                <Run Text="{Binding CityPopupFontSize, StringFormat={}{0:F0}px, Mode=OneWay}"/>
+                            </TextBlock>
+                        </Grid>
+                        <Slider Minimum="10" Maximum="40"
+                                Value="{Binding CityPopupFontSize, Mode=TwoWay}"
+                                IsMoveToPointEnabled="True"
+                                SmallChange="1" LargeChange="5"
+                                Margin="0,0,0,8"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock Text="Прозрачность текста:" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="10">
+                                <Run Text="{Binding CityPopupOpacity, StringFormat={}{0:P0}, Mode=OneWay}"/>
+                            </TextBlock>
+                        </Grid>
+                        <Slider Minimum="0" Maximum="1"
+                                Value="{Binding CityPopupOpacity, Mode=TwoWay}"
+                                IsMoveToPointEnabled="True"
+                                SmallChange="0.05" LargeChange="0.2"
+                                Margin="0,0,0,4"/>
+                    </StackPanel>
 
                     <Grid Margin="0,0,0,4">
                         <TextBlock Text="Прозрачность облаков:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>

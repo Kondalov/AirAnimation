@@ -78,7 +78,7 @@
                         <TextBlock Text="Куда" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                         <TextBox Text="{Binding SearchQueryTo, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
                         
-                        <Button Command="{Binding BuildFromTextCommand}" Content="Построить маршрут" />
+                        <Button Command="{Binding BuildFromTextCommand}" Content="Построить маршрут" Style="{StaticResource PrimaryBtn}" />
                         
                         <TextBlock Text="{Binding RoutingError}" Foreground="{StaticResource DangerBrush}" 
                                    FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"

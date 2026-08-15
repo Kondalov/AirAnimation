@@ -38,7 +38,26 @@ public partial class MapView : UserControl
 
         // Attach bridge
         if (DataContext is MapViewModel vm)
+        {
             vm.AttachWebView(WebMap);
+            vm.ViewportSizeChanged += (s, args) =>
+            {
+                if (args.Width > 0 && args.Height > 0)
+                {
+                    WebMap.Width = args.Width;
+                    WebMap.Height = args.Height;
+                    WebMap.HorizontalAlignment = HorizontalAlignment.Left;
+                    WebMap.VerticalAlignment = VerticalAlignment.Top;
+                }
+                else
+                {
+                    WebMap.Width = double.NaN;
+                    WebMap.Height = double.NaN;
+                    WebMap.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    WebMap.VerticalAlignment = VerticalAlignment.Stretch;
+                }
+            };
+        }
     }
 
     private async void StyleBtn_Click(object sender, RoutedEventArgs e)

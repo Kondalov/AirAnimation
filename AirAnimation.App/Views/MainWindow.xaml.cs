@@ -60,6 +60,12 @@ public partial class MainWindow : Window
             vm.AnimationViewModel.ShowCityPopupsChanged += async (_, show) =>
                 await vm.MapViewModel.SetCityPopupsAsync(show);
 
+            vm.AnimationViewModel.ShowCityLabelsChanged += async (_, _) =>
+                await vm.MapViewModel.Bridge.SetMarkerVisibilityAsync(vm.AnimationViewModel.ShowCityLabels, vm.AnimationViewModel.ShowCountryFlags);
+
+            vm.AnimationViewModel.ShowCountryFlagsChanged += async (_, _) =>
+                await vm.MapViewModel.Bridge.SetMarkerVisibilityAsync(vm.AnimationViewModel.ShowCityLabels, vm.AnimationViewModel.ShowCountryFlags);
+
             // Map Style update
             vm.AnimationViewModel.MapStyleChanged += async (_, style) =>
                 await vm.MapViewModel.SetMapStyleAsync(style);
@@ -95,6 +101,8 @@ public partial class MainWindow : Window
             vm.MapViewModel.Bridge.MapReady += (_, _) =>
             {
                 vm.MapViewModel.OnMapReady();
+                _ = vm.MapViewModel.Bridge.SetMarkerVisibilityAsync(vm.AnimationViewModel.ShowCityLabels, vm.AnimationViewModel.ShowCountryFlags);
+
                 if (vm.TransportViewModel.SelectedTransport is { } t)
                     _ = vm.MapViewModel.SetTransportAsync(t.SvgIcon, vm.TransportViewModel.TransportSize, t.DefaultSpeed);
                 else
