@@ -41,6 +41,7 @@ public sealed partial class RouteViewModel : ObservableObject
     [ObservableProperty] private string? routingError;
 
     public event EventHandler? RouteUpdated;
+    public event EventHandler<IEnumerable<string>>? WaypointsReordered;
     public event EventHandler? BoundsRequested;
 
     // Raised to tell MapView to add/remove a marker
@@ -105,6 +106,7 @@ public sealed partial class RouteViewModel : ObservableObject
         var idx = Waypoints.IndexOf(item);
         if (idx <= 0) return;
         Waypoints.Move(idx, idx - 1);
+        WaypointsReordered?.Invoke(this, Waypoints.Select(w => w.Id));
         await RefreshSegmentsAsync();
     }
 
@@ -115,6 +117,7 @@ public sealed partial class RouteViewModel : ObservableObject
         var idx = Waypoints.IndexOf(item);
         if (idx < 0 || idx >= Waypoints.Count - 1) return;
         Waypoints.Move(idx, idx + 1);
+        WaypointsReordered?.Invoke(this, Waypoints.Select(w => w.Id));
         await RefreshSegmentsAsync();
     }
 
@@ -129,8 +132,7 @@ public sealed partial class RouteViewModel : ObservableObject
 
     public async Task ImportWaypointsAsync(IEnumerable<Waypoint> waypoints)
     {
-        Waypoints.Clear();
-        Segments.Clear();
+        ClearAll();
         foreach (var wp in waypoints.OrderBy(w => w.Order))
         {
             var item = new WaypointItemViewModel

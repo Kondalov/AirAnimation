@@ -75,3 +75,18 @@ public sealed class InverseBoolConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         value is bool b && !b;
 }
+
+public sealed class EqualityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value == null || parameter == null) return false;
+        return value.ToString() == parameter.ToString();
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool b && b) return parameter;
+        return DependencyProperty.UnsetValue;
+    }
+}

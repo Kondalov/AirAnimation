@@ -75,25 +75,27 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0.9);
-    background: rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.45); /* More transparent */
     color: #fff;
-    padding: 16px 32px;
-    border-radius: 16px;
+    padding: 10px 24px;
+    border-radius: 12px;
     font-family: 'Segoe UI', sans-serif;
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(16px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    font-size: 18px; /* Smaller font */
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     pointer-events: none;
     z-index: 200;
     opacity: 0;
     transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    left: 0;
+    top: 0;
   }
   #city-popup.visible {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -100%) scale(1);
   }
 
   /* Loading screen */
@@ -130,10 +132,12 @@
   <p>Загрузка 3D карты AirAnimation...</p>
 </div>
 <div id="map"></div>
-<canvas id="clouds-canvas"></canvas>
-<canvas id="rain-canvas" class="weather-canvas"></canvas>
-<canvas id="snow-canvas" class="weather-canvas"></canvas>
-<canvas id="lightning-canvas" class="weather-canvas"></canvas>
+<div id="weather-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100;">
+  <canvas id="clouds-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+  <canvas id="rain-canvas" class="weather-canvas"></canvas>
+  <canvas id="snow-canvas" class="weather-canvas"></canvas>
+  <canvas id="lightning-canvas" class="weather-canvas"></canvas>
+</div>
 <div id="city-popup"></div>
 <div id="hud" style="display:none">
   <div class="hud-card">
@@ -225,11 +229,39 @@ const map = new maplibregl.Map({
   bearing: 0,
   attributionControl: false,
   antialias: true,
-  maxPitch: 85
+  maxPitch: 85,
+  projection: { type: 'globe' }
 });
 
 map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+
+// ═══════════════════════════════════════════════════════════════
+//  GLOBE MASKING FOR WEATHER
+// ═══════════════════════════════════════════════════════════════
+function updateWeatherMask() {
+  const container = document.getElementById('weather-container');
+  if (!container || !map) return;
+  
+  const zoom = map.getZoom();
+  // MapLibre globe radius in pixels
+  const R = (512 * Math.pow(2, zoom)) / (2 * Math.PI);
+  
+  const w = map.getContainer().offsetWidth;
+  const h = map.getContainer().offsetHeight;
+  const maxR = Math.sqrt(w*w + h*h) / 2;
+  
+  if (R > maxR * 1.5) {
+     container.style.clipPath = 'none';
+     container.style.webkitClipPath = 'none';
+  } else {
+     // A slight feathering or just exact radius (subtracting 2 pixels to avoid white/black edge artifacts)
+     container.style.clipPath = `circle(${Math.max(0, R - 1)}px at 50% 50%)`;
+     container.style.webkitClipPath = `circle(${Math.max(0, R - 1)}px at 50% 50%)`;
+  }
+}
+map.on('render', updateWeatherMask);
+map.on('resize', updateWeatherMask);
 
 // ═══════════════════════════════════════════════════════════════
 //  STATE
@@ -587,6 +619,21 @@ window.bridge = {
     updateWaypointBadges();
   },
 
+  reorderWaypoints({ ids }) {
+    if (!ids || !ids.length) return;
+    const newWaypoints = [];
+    ids.forEach(id => {
+      const wp = state.waypoints.find(w => w.id === id);
+      if (wp) newWaypoints.push(wp);
+    });
+    // Add any remaining that were somehow missed
+    state.waypoints.forEach(w => {
+      if (!newWaypoints.includes(w)) newWaypoints.push(w);
+    });
+    state.waypoints = newWaypoints;
+    updateWaypointBadges();
+  },
+
   clearWaypoints() {
     state.waypoints.forEach(w => w.marker.remove());
     state.waypoints = [];
@@ -685,6 +732,41 @@ window.bridge = {
     const key = styleUrl || 'dark';
     const style = STYLES[key] || DARK_STYLE;
     
+    if (key === 'satellite') {
+      try {
+        const res = await fetch(DARK_STYLE);
+        const styleJson = await res.json();
+        
+        // Patch text-field to prioritize Russian language
+        if (styleJson.layers) {
+          styleJson.layers.forEach(layer => {
+            if (layer.layout && layer.layout['text-field']) {
+              const str = JSON.stringify(layer.layout['text-field']);
+              if (str.includes('name_en') || str.includes('{name}')) {
+                 layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
+              }
+            }
+          });
+        }
+        
+        // Remove background and water to make it transparent for the satellite layer
+        styleJson.layers = styleJson.layers.filter(l => l.id !== 'background' && l.id !== 'water');
+        
+        // Add ESRI Satellite as base
+        styleJson.sources['sat'] = SATELLITE_STYLE.sources.sat;
+        styleJson.layers.unshift({
+          id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 }
+        });
+        
+        map.setStyle(styleJson);
+        map.setProjection({ type: 'globe' });
+        map.once('styledata', () => { rebuildLayers(); });
+        return;
+      } catch (e) {
+        console.warn('Failed to build hybrid satellite, using fallback', e);
+      }
+    }
+
     // Check if it's a vector style URL we can patch for Russian language
     if (typeof style === 'string' && style.endsWith('.json')) {
       try {
@@ -695,8 +777,7 @@ window.bridge = {
         if (styleJson.layers) {
           styleJson.layers.forEach(layer => {
             if (layer.layout && layer.layout['text-field']) {
-              const tf = layer.layout['text-field'];
-              const str = JSON.stringify(tf);
+              const str = JSON.stringify(layer.layout['text-field']);
               if (str.includes('name_en') || str.includes('{name}')) {
                  layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
               }
@@ -704,6 +785,7 @@ window.bridge = {
           });
         }
         map.setStyle(styleJson);
+        map.setProjection({ type: 'globe' });
         map.once('styledata', () => { rebuildLayers(); });
         return;
       } catch (e) {
@@ -712,6 +794,7 @@ window.bridge = {
     }
     
     map.setStyle(style);
+    map.setProjection({ type: 'globe' });
     map.once('styledata', () => { rebuildLayers(); });
   },
 
@@ -734,6 +817,9 @@ window.bridge = {
     }
     if (state.animProgress === 0) {
       state.shownCityPopups.clear();
+      state.currentActivePopup = null;
+      const popup = document.getElementById('city-popup');
+      if (popup) popup.classList.remove('visible');
     }
 
     if (state.showHud !== false) {
@@ -996,10 +1082,27 @@ function runAnimation() {
 // ── City Popups Logic ────────────────────────────────────────────
 function checkCityPopups(p, currentLngLat) {
   if (!state.showCityPopups) return;
-  if (p <= 0 || p >= 1) return; // Don't show at very start or end
   
   const currentPt = turf.point(currentLngLat);
+  const popup = document.getElementById('city-popup');
   
+  // Hide current popup if its time is up
+  if (state.currentActivePopup && p >= state.currentActivePopup.hideAtP) {
+    if (popup) popup.classList.remove('visible');
+    state.currentActivePopup = null;
+  }
+
+  // Update position if visible
+  if (state.currentActivePopup && popup) {
+    const wp = state.waypoints.find(w => w.id === state.currentActivePopup.id);
+    if (wp) {
+       const pos = map.project([wp.lon, wp.lat]);
+       popup.style.left = pos.x + 'px';
+       popup.style.top = pos.y + 'px';
+    }
+  }
+
+  // Look for new popups
   state.waypoints.forEach((w, i) => {
     // Skip if no label
     if (!w.label) return;
@@ -1008,28 +1111,32 @@ function checkCityPopups(p, currentLngLat) {
       const wpPt = turf.point([w.lon, w.lat]);
       const dist = turf.distance(currentPt, wpPt, { units: 'kilometers' });
       
-      // If we are within 20km of the city, trigger popup
-      if (dist < 20) {
+      let trigger = false;
+      // Trigger if we are close (increased to 100km to catch fast animation frames)
+      if (dist < 100) trigger = true;
+      
+      // Fallback triggers:
+      // First waypoint at start
+      if (i === 0 && p < 0.05) trigger = true;
+      // Last waypoint at end (guarantee Kemer appears)
+      if (i === state.waypoints.length - 1 && p > 0.90) trigger = true;
+
+      if (trigger) {
         state.shownCityPopups.add(w.id);
-        showCityPopup(w.label);
+        
+        // Show for 10% of the flight time or until the end
+        state.currentActivePopup = { id: w.id, hideAtP: p + 0.10 };
+        
+        if (popup) {
+          popup.textContent = w.label;
+          popup.classList.add('visible');
+          const pos = map.project([w.lon, w.lat]);
+          popup.style.left = pos.x + 'px';
+          popup.style.top = pos.y + 'px';
+        }
       }
     }
   });
-}
-
-function showCityPopup(cityName) {
-  const popup = document.getElementById('city-popup');
-  if (!popup) return;
-  
-  popup.textContent = cityName;
-  popup.classList.add('visible');
-  
-  // Random duration between 1s and 3s (1000ms to 3000ms)
-  const duration = Math.floor(Math.random() * 2000) + 1000;
-  
-  setTimeout(() => {
-    popup.classList.remove('visible');
-  }, duration);
 }
 
 // ── WebGL Clouds Engine ──────────────────────────────────────────

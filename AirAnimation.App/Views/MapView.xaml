@@ -18,10 +18,50 @@
                                Foreground="{StaticResource TextMutedBrush}"
                                Margin="0,0,0,6"/>
                     <UniformGrid Columns="2" Width="130">
-                        <Button Content="🌑 Dark"     Tag="dark"       Style="{StaticResource GhostBtn}" FontSize="11" Click="StyleBtn_Click" Margin="2"/>
-                        <Button Content="☀ Light"    Tag="streets"    Style="{StaticResource GhostBtn}" FontSize="11" Click="StyleBtn_Click" Margin="2"/>
-                        <Button Content="🛰 Спутник" Tag="satellite"  Style="{StaticResource GhostBtn}" FontSize="11" Click="StyleBtn_Click" Margin="2"/>
-                        <Button Content="🏔 Рельеф"  Tag="outdoors"   Style="{StaticResource GhostBtn}" FontSize="11" Click="StyleBtn_Click" Margin="2"/>
+                        <UniformGrid.Resources>
+                            <Style TargetType="RadioButton" x:Key="MapStyleRadio">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush_}"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="Padding" Value="4"/>
+                                <Setter Property="Margin" Value="2"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource BgCardHoverBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </UniformGrid.Resources>
+                        <RadioButton Content="🌑 Dark" Tag="dark" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=dark}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="☀ Light" Tag="streets" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=streets}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🛰 Спутник" Tag="satellite" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=satellite}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🏔 Рельеф" Tag="outdoors" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=outdoors}" Click="StyleBtn_Click"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>

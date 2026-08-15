@@ -30,6 +30,9 @@ public partial class MainWindow : Window
             vm.RouteViewModel.WaypointRemoved += async (_, id) =>
                 await vm.MapViewModel.RemoveWaypointAsync(id);
 
+            vm.RouteViewModel.WaypointsReordered += async (_, ids) =>
+                await vm.MapViewModel.ReorderWaypointsAsync(ids);
+
             // MapView click → RouteViewModel
             vm.MapViewModel.Bridge.MapClicked += async (_, args) =>
                 await vm.RouteViewModel.AddWaypointFromMapAsync(args.Lat, args.Lon);

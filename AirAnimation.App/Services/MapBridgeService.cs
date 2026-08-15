@@ -88,6 +88,9 @@ public sealed class MapBridgeService
     public Task RemoveWaypointAsync(string id) =>
         ExecAsync("removeWaypoint", new { id });
 
+    public Task ReorderWaypointsAsync(IEnumerable<string> ids) =>
+        ExecAsync("reorderWaypoints", new { ids });
+
     public Task ClearWaypointsAsync() =>
         ExecAsync("clearWaypoints", new { });
 

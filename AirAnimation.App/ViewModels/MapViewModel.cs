@@ -42,6 +42,9 @@ public sealed partial class MapViewModel : ObservableObject
 
     public Task RemoveWaypointAsync(string id) => _bridge.RemoveWaypointAsync(id);
 
+    public Task ReorderWaypointsAsync(IEnumerable<string> ids) =>
+        _bridge.ReorderWaypointsAsync(ids);
+
     public Task PlayAsync(double speed, bool follow, double pitch, string mode = "follow", double zoom = 7.5, double bearingOffset = 0, bool globeIntro = false, double? targetDurationSeconds = null) =>
         _bridge.PlayAnimationAsync(speed, follow, pitch, mode, zoom, bearingOffset, globeIntro, targetDurationSeconds);
 

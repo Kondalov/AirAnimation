@@ -44,15 +44,31 @@ public partial class MapView : UserControl
             {
                 if (args.Width > 0 && args.Height > 0)
                 {
-                    WebMap.Width = args.Width;
-                    WebMap.Height = args.Height;
-                    WebMap.HorizontalAlignment = HorizontalAlignment.Left;
-                    WebMap.VerticalAlignment = VerticalAlignment.Top;
+                    double targetRatio = (double)args.Width / args.Height;
+                    double currentRatio = ActualWidth / ActualHeight;
+                    
+                    if (targetRatio > currentRatio)
+                    {
+                        // Constrain by width
+                        WebMap.Width = ActualWidth;
+                        WebMap.Height = ActualWidth / targetRatio;
+                        WebMap.ZoomFactor = ActualWidth / args.Width;
+                    }
+                    else
+                    {
+                        // Constrain by height
+                        WebMap.Height = ActualHeight;
+                        WebMap.Width = ActualHeight * targetRatio;
+                        WebMap.ZoomFactor = ActualHeight / args.Height;
+                    }
+                    WebMap.HorizontalAlignment = HorizontalAlignment.Center;
+                    WebMap.VerticalAlignment = VerticalAlignment.Center;
                 }
                 else
                 {
                     WebMap.Width = double.NaN;
                     WebMap.Height = double.NaN;
+                    WebMap.ZoomFactor = 1.0;
                     WebMap.HorizontalAlignment = HorizontalAlignment.Stretch;
                     WebMap.VerticalAlignment = VerticalAlignment.Stretch;
                 }
@@ -62,8 +78,12 @@ public partial class MapView : UserControl
 
     private async void StyleBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && DataContext is MapViewModel vm)
-            await vm.SetMapStyleAsync(btn.Tag?.ToString() ?? "dark");
+        if (sender is RadioButton btn && DataContext is MapViewModel vm)
+        {
+            var style = btn.Tag?.ToString() ?? "dark";
+            vm.CurrentStyleKey = style;
+            await vm.SetMapStyleAsync(style);
+        }
     }
 
     private static string GetInlineHtml()

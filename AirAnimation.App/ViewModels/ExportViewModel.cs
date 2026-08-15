@@ -105,6 +105,9 @@ public sealed partial class ExportViewModel : ObservableObject
                 await _mapVm.SetExportModeAsync(true);
                 await _mapVm.SetHudVisibilityAsync(IncludeHud);
                 await Task.Delay(250); // allow resize to take effect
+                
+                await _mapVm.FitBoundsAsync();
+                await Task.Delay(850); // allow fitBounds 800ms animation to complete
             }
 
             // Step 1: Deterministic Frame Capture

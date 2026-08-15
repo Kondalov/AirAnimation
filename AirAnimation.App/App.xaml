@@ -17,6 +17,7 @@
             <conv:NullToBoolConverter x:Key="NullToBool"/>
             <conv:ProgressToPercentConverter x:Key="ProgressToPercent"/>
             <conv:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <conv:EqualityConverter x:Key="EqualityConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
