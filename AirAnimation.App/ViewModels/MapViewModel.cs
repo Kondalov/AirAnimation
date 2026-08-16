@@ -23,9 +23,9 @@ public sealed partial class MapViewModel : ObservableObject
 
     public void AttachWebView(WebView2 wv) => _bridge.Attach(wv);
 
-    public async Task SetTransportAsync(TransportModel transport)
+    public async Task SetTransportAsync(TransportModel transport, double size = 84)
     {
-        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, 64, transport.DefaultSpeed);
+        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, size, transport.DefaultSpeed);
     }
 
     public Task SetTransportSizeAsync(double size) =>

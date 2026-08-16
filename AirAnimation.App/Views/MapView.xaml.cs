@@ -29,8 +29,8 @@ public partial class MapView : UserControl
             AppContext.BaseDirectory, 
             CoreWebView2HostResourceAccessKind.Allow);
 
-        // Navigate via virtual host so ES modules & importmap resolve correctly (file:// blocks ESM)
-        WebMap.Source = new Uri("https://appassets.local/Resources/MapHtml/index.html");
+        // Navigate via virtual host with cache-busting timestamp so updates are immediately loaded
+        WebMap.Source = new Uri($"https://appassets.local/Resources/MapHtml/index.html?v={DateTime.UtcNow.Ticks}");
 
         // Attach bridge
         if (DataContext is MapViewModel vm)

@@ -52,7 +52,15 @@
     position:relative;
   }
   .waypoint-badge:hover { transform:scale(1.25); z-index:50; }
-  .waypoint-badge.start { background:#2ECC71; color:#fff; box-shadow:0 6px 16px rgba(46,204,113,.6); }
+  .waypoint-badge.start {
+    width:24px; height:24px;
+    left:-12px !important; top:-12px !important;
+    background:rgba(46,204,113,0.35);
+    border:2.5px solid #2ECC71;
+    box-shadow:0 0 14px rgba(46,204,113,0.8), inset 0 0 6px rgba(46,204,113,0.6);
+    color:transparent;
+    font-size:0;
+  }
   .waypoint-badge.end   { background:#E74C3C; color:#fff; box-shadow:0 6px 16px rgba(231,76,60,.6); }
   .waypoint-badge .label {
     position:absolute; top:-34px; left:50%; transform:translateX(-50%);
@@ -314,8 +322,37 @@ function updateWeatherMask() {
      container.style.webkitClipPath = `circle(${Math.max(0, R - 1)}px at 50% 50%)`;
   }
 }
-map.on('render', updateWeatherMask);
-map.on('resize', updateWeatherMask);
+// ═══════════════════════════════════════════════════════════════
+//  MATH & GEOMETRY HELPERS
+// ═══════════════════════════════════════════════════════════════
+function calcBearing(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function calcTotalDist(coords) {
+  if (!coords || coords.length < 2) return 0;
+  let d = 0;
+  for (let i = 1; i < coords.length; i++) {
+    if (window.turf && window.turf.distance) {
+      d += turf.distance(turf.point(coords[i-1]), turf.point(coords[i]), { units: 'meters' });
+    } else {
+      const lat1 = coords[i-1][1], lon1 = coords[i-1][0];
+      const lat2 = coords[i][1], lon2 = coords[i][0];
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      d += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+  }
+  return d;
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  STATE
@@ -377,41 +414,67 @@ const threeCustomLayer = {
         this.camera = new window.THREE.Camera();
         this.scene = new window.THREE.Scene();
 
-        // Multi-directional lighting so models are brilliantly lit from all angles
-        const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x666666, 2.5);
+        // Brilliant multi-directional lighting so models shine vibrantly on all map backgrounds
+        const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x888888, 4.0);
         this.scene.add(hemiLight);
 
-        const dirLight1 = new window.THREE.DirectionalLight(0xffffff, 2.5);
+        const dirLight1 = new window.THREE.DirectionalLight(0xffffff, 4.0);
         dirLight1.position.set(50, 50, 100).normalize();
         this.scene.add(dirLight1);
 
-        const dirLight2 = new window.THREE.DirectionalLight(0xffffff, 2.0);
+        const dirLight2 = new window.THREE.DirectionalLight(0xffffff, 3.0);
         dirLight2.position.set(-50, -50, 100).normalize();
         this.scene.add(dirLight2);
 
-        this.scene.add(new window.THREE.AmbientLight(0xffffff, 2.0));
+        this.scene.add(new window.THREE.AmbientLight(0xffffff, 3.5));
 
         if (this.model) {
             this.scene.add(this.model);
         }
 
-        if (!this.renderer) {
-            this.renderer = new window.THREE.WebGLRenderer({
-                canvas: map.getCanvas(),
-                context: gl,
-                antialias: true
-            });
-            this.renderer.autoClear = false;
+        if (this.renderer) {
+            try { this.renderer.dispose(); } catch(e) {}
         }
+
+        this.renderer = new window.THREE.WebGLRenderer({
+            canvas: map.getCanvas(),
+            context: gl,
+            antialias: true
+        });
+        this.renderer.autoClear = false;
         
         window.threeLayer = this;
     },
-    render(gl, matrix) {
+    onRemove(map, gl) {
+        if (this.renderer) {
+            try { this.renderer.dispose(); } catch(e) {}
+            this.renderer = null;
+        }
+    },
+    render(gl, matrixOrArgs) {
         if (!this.model) return;
+        // Transport appears ONLY after a route has been built (at least 2 waypoints)
+        if (!state.routeCoords || state.routeCoords.length < 2) return;
 
         try {
+            // Extract projection matrix from MapLibre 5 args object or array
+            const rawMatrix = Array.isArray(matrixOrArgs)
+                ? matrixOrArgs
+                : (matrixOrArgs?.defaultProjectionData?.mainMatrix || matrixOrArgs?.mainMatrix);
+
+            if (!rawMatrix) return;
+
+            if (!this.renderer) {
+                this.renderer = new window.THREE.WebGLRenderer({
+                    canvas: map.getCanvas(),
+                    context: gl,
+                    antialias: true
+                });
+                this.renderer.autoClear = false;
+            }
+
             // Re-attach model if scene was cleared by style changes
-            if (!this.scene.children.includes(this.model)) {
+            if (this.scene && this.model && !this.scene.children.includes(this.model)) {
                 this.scene.add(this.model);
             }
 
@@ -434,11 +497,12 @@ const threeCustomLayer = {
             const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
             const s = (state.transportSize || 64) * mercatorPerPixel; 
 
+            const headingAngle = state.effectiveAngle !== undefined ? state.effectiveAngle : state.currentHeading;
             const rotationX = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(1, 0, 0), Math.PI / 2);
-            const rotationZ = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), -state.currentHeading * Math.PI / 180);
+            const rotationZ = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), -headingAngle * Math.PI / 180);
             const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), state.currentBankRoll * Math.PI / 180);
 
-            const m = new window.THREE.Matrix4().fromArray(matrix);
+            const m = new window.THREE.Matrix4().fromArray(rawMatrix);
             
             // Standard MapLibre Three.js CustomLayer coordinate system:
             // Translation -> Scale(s, -s, s) -> RotationX(PI/2) -> RotationZ(-heading) -> Roll
@@ -454,11 +518,6 @@ const threeCustomLayer = {
             
             this.renderer.resetState();
             this.renderer.render(this.scene, this.camera);
-            
-            if (!this._hasLoggedSuccess) {
-                this._hasLoggedSuccess = true;
-                sendErrorToCSharp(`3D_RENDER_OK: Lon=${state.currentLon}, Lat=${state.currentLat}, s=${s}, Heading=${state.currentHeading}`);
-            }
         } catch (err) {
             sendErrorToCSharp(`3D_RENDER_ERROR: ${err.message} | ${err.stack}`);
         }
@@ -486,6 +545,11 @@ map.on('load', async () => {
       if (!map.getLayer('3d-model-layer')) map.addLayer(threeCustomLayer);
     }, { once: true });
   }
+
+  // Automatically restore custom 3D layer and route layers whenever map style changes
+  map.on('style.load', () => {
+    rebuildLayers();
+  });
 
   map.on('click', (e) => {
     if (state.animPlaying) return;
@@ -751,30 +815,18 @@ window.bridge = {
       state.waypoints.splice(index, 0, { id, lat, lon, label, marker });
     }
     
+    // If this is the only waypoint and no route yet, position vehicle here immediately
+    if (state.waypoints.length === 1 && (!state.routeCoords || state.routeCoords.length < 2)) {
+      state.currentLon = lon;
+      state.currentLat = lat;
+      map.triggerRepaint();
+    }
+
     updateWaypointBadges();
   },
 
   setCityPopups(show) {
     state.showCityPopups = show;
-  },
-
-  setRoute(coords, totalDist, bounds) {
-    state.routeCoords = coords || [];
-    state.totalDist = totalDist || 0;
-    
-    map.getSource('route')?.setData({
-      type: 'Feature',
-      geometry: { type: 'LineString', coordinates: state.routeCoords }
-    });
-    
-    if (bounds && bounds.length === 2 && !state.animPlaying) {
-      map.fitBounds(bounds, { padding: 80, duration: 800 });
-    }
-    
-    // Position transport at start
-    if (state.routeCoords.length >= 2) {
-      placeTransportAtProgress(0);
-    }
   },
 
   moveWaypoint({ id, lat, lon }) {
@@ -808,27 +860,47 @@ window.bridge = {
   clearWaypoints() {
     state.waypoints.forEach(w => w.marker.remove());
     state.waypoints = [];
+    state.routeCoords = [];
+    state.totalDist = 0;
+    map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    if (state.transportMarker) {
+      state.transportMarker.remove();
+      state.transportMarker = null;
+    }
+    map.triggerRepaint();
   },
 
   setRoute({ coordinates, color, width }) {
-    state.routeCoords = coordinates;
-    state.totalDist = calcTotalDist(coordinates);
+    try {
+      state.routeCoords = coordinates;
+      state.totalDist = calcTotalDist(coordinates);
 
-    if (map.getSource('route')) {
-      map.getSource('route').setData({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates }
-      });
-    }
-    if (map.getSource('trail')) {
-      map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-    }
-    
-    updateLayerStyles();
+      if (map.getSource('route')) {
+        map.getSource('route').setData({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates }
+        });
+      }
+      if (map.getSource('trail')) {
+        map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+      }
+      
+      updateLayerStyles();
 
-    if (coordinates.length >= 2) {
-      // Place airplane PRECISELY at Start Waypoint (index 0)
-      placeTransportAtProgress(0);
+      // Ensure 3D layer is attached to the map
+      if (window._threeReady && !map.getLayer('3d-model-layer')) {
+        map.addLayer(threeCustomLayer);
+      }
+
+      if (coordinates.length >= 2) {
+        // Place transport PRECISELY at Start Waypoint (index 0)
+        placeTransportAtProgress(0);
+      }
+      map.triggerRepaint();
+      sendErrorToCSharp(`SET_ROUTE_SUCCESS: ${coordinates.length} coords, totalDist=${(state.totalDist/1000).toFixed(1)}km, hasModel=${!!(window.threeLayer && window.threeLayer.model)}`);
+    } catch(err) {
+      sendErrorToCSharp(`SET_ROUTE_ERROR: ${err.message} | ${err.stack}`);
     }
   },
 
@@ -837,6 +909,11 @@ window.bridge = {
     state.totalDist = 0;
     map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
     map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+    if (state.transportMarker) {
+      state.transportMarker.remove();
+      state.transportMarker = null;
+    }
+    map.triggerRepaint();
   },
 
   async setTransport({ id, svg, size, speedKmh }) {
@@ -853,43 +930,78 @@ window.bridge = {
     if (window.threeLayer && window.GLTFLoader) {
         try {
             const loader = new window.GLTFLoader();
-            const modelUrl = `https://appassets.local/Models/${id}.glb`;
-            if (window.chrome && window.chrome.webview) {
-                window.chrome.webview.postMessage(JSON.stringify({type: 'js_error', message: 'LOADING_MODEL_URL: ' + modelUrl}));
-            }
+            const modelUrl = `/Models/${id}.glb`;
             const gltf = await loader.loadAsync(modelUrl);
             
             if (window.threeLayer.model) {
                 window.threeLayer.scene.remove(window.threeLayer.model);
+                window.threeLayer.model = null;
             }
             
-            // Recenter and normalize
-            const box = new window.THREE.Box3().setFromObject(gltf.scene);
+            const modelScene = gltf.scene;
+
+            // Filter out non-vehicle background meshes and cameras
+            const toRemove = [];
+            modelScene.traverse((child) => {
+                if (child.isCamera || (child.name && child.name.toLowerCase().includes('camera'))) {
+                    toRemove.push(child);
+                }
+                if (child.name === 'Fabric' || (child.isMesh && child.name.toLowerCase().includes('fabric'))) {
+                    toRemove.push(child);
+                }
+                if (child.isMesh) {
+                    child.frustumCulled = false;
+                    child.castShadow = false;
+                    child.receiveShadow = false;
+                    if (child.material) {
+                        child.material.side = window.THREE.DoubleSide;
+                        child.material.depthTest = true;
+                        child.material.depthWrite = true;
+                        
+                        // Prevent pure black metallic reflection without HDR environment map
+                        if (child.material.metalness !== undefined) {
+                            child.material.metalness = Math.min(child.material.metalness, 0.25);
+                        }
+                        if (child.material.roughness !== undefined) {
+                            child.material.roughness = Math.max(child.material.roughness, 0.35);
+                        }
+                        
+                        // Glass / transmissive material support
+                        if (child.material.transmission && child.material.transmission > 0) {
+                            child.material.transmission = 0;
+                            child.material.transparent = true;
+                            child.material.opacity = 0.6;
+                            child.material.color = new window.THREE.Color(0x80bfff);
+                        }
+                    }
+                }
+            });
+            toRemove.forEach(c => {
+                if (c.parent) c.parent.remove(c);
+            });
+
+            // CRITICAL: Update world matrix hierarchy before measuring bounds!
+            modelScene.updateMatrixWorld(true);
+
+            // Compute bounds strictly on visible vehicle meshes
+            const box = new window.THREE.Box3();
+            modelScene.traverse((child) => {
+                if (child.isMesh && child.visible) {
+                    box.expandByObject(child);
+                }
+            });
+
             const center = box.getCenter(new window.THREE.Vector3());
             const sizeVec = box.getSize(new window.THREE.Vector3());
             const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1.0;
             const normalizedScale = 1.0 / maxDim;
 
-            // 1. Center the geometry at (0,0) with bottom at Y=0
-            gltf.scene.position.set(-center.x, -box.min.y, -center.z);
+            // Center the geometry at (0,0) with bottom wheels at ground level Y=0
+            modelScene.position.set(-center.x, -box.min.y, -center.z);
 
-            // 2. Put inside an inner group for rotation and scaling
             const innerGroup = new window.THREE.Group();
-            innerGroup.add(gltf.scene);
-            innerGroup.rotation.y = Math.PI; // Face forward along Z
+            innerGroup.add(modelScene);
             innerGroup.scale.setScalar(normalizedScale);
-
-            // 3. Ensure all materials are visible and frustum culling is disabled
-            innerGroup.traverse((child) => {
-                child.frustumCulled = false;
-                if (child.isMesh) {
-                    if (child.material) {
-                        child.material.side = window.THREE.DoubleSide;
-                        child.material.depthTest = true;
-                        child.material.depthWrite = true;
-                    }
-                }
-            });
 
             const wrapperGroup = new window.THREE.Group();
             wrapperGroup.add(innerGroup);
@@ -897,18 +1009,20 @@ window.bridge = {
             window.threeLayer.model = wrapperGroup;
             window.threeLayer.scene.add(wrapperGroup);
             
+            // Ensure 3D layer is attached to map
+            if (map && !map.getLayer('3d-model-layer')) {
+                map.addLayer(threeCustomLayer);
+            }
+
             // Remove 2D marker since 3D model succeeded
             if (state.transportMarker) {
                 state.transportMarker.remove();
                 state.transportMarker = null;
             }
             map.triggerRepaint();
+            sendErrorToCSharp(`3D_MODEL_LOADED: ${id} (normScale=${normalizedScale.toFixed(2)})`);
         } catch (e) {
-            console.warn("Failed to load 3D model, falling back to SVG", e);
-            if (window.chrome && window.chrome.webview) {
-                window.chrome.webview.postMessage(JSON.stringify({type: 'js_error', message: 'GLTF_LOAD_ERROR: ' + (e.message || String(e))}));
-            }
-            
+            sendErrorToCSharp(`3D_MODEL_LOAD_FAILED: ${id} | ${e.message}`);
             // 1. Clear any 3D model from scene
             if (window.threeLayer && window.threeLayer.model) {
                 window.threeLayer.scene.remove(window.threeLayer.model);
@@ -931,6 +1045,7 @@ window.bridge = {
   setTransportSize({ size }) {
     state.transportSize = size || 84;
     updateTransportMarkerDOM();
+    map.triggerRepaint();
   },
 
   setRouteSettings({ drawMode, trailStyle }) {
@@ -1255,6 +1370,13 @@ function updateTransportMarkerDOM() {
 }
 
 function createOrUpdateTransportMarker() {
+  if ((window.threeLayer && window.threeLayer.model) || !state.routeCoords || state.routeCoords.length < 2) {
+    if (state.transportMarker) {
+      state.transportMarker.remove();
+      state.transportMarker = null;
+    }
+    return;
+  }
   if (!state.transportMarker) {
     state.transportMarker = new maplibregl.Marker({ 
       element: createTransportDOM(),
@@ -1281,7 +1403,7 @@ function updateWaypointBadges() {
     
     if (i === 0) {
       el.classList.add('start');
-      el.innerHTML = '🛫';
+      el.innerHTML = '';
     } else if (i === total - 1 && total > 1) {
       el.classList.add('end');
       el.innerHTML = '🏁';
@@ -1850,6 +1972,7 @@ function placeTransportAtProgress(p) {
       } else if (state.orientationMode === 'custom') {
          effectiveAngle = (vehicleHeading + state.modelAngleOffset) % 360;
       }
+      state.effectiveAngle = effectiveAngle;
 
       // If we are using 2D fallback marker
       if (state.transportMarker) {
