@@ -109,7 +109,7 @@ public partial class MainWindow : Window
                 if (vm.TransportViewModel.SelectedTransport is { } t)
                     _ = vm.MapViewModel.SetTransportAsync(t);
                 else
-                    vm.TransportViewModel.SelectTransport("airliner");
+                    vm.TransportViewModel.SelectTransport("hyundai_ioniq6");
             };
         }
     }

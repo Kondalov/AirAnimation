@@ -55,6 +55,7 @@ public sealed partial class TransportViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        var prevSelected = SelectedTransport;
         FilteredTransports.Clear();
         var query = TransportModel.All.AsEnumerable();
 
@@ -68,5 +69,18 @@ public sealed partial class TransportViewModel : ObservableObject
 
         foreach (var t in query)
             FilteredTransports.Add(t);
+
+        if (prevSelected is not null && FilteredTransports.Contains(prevSelected))
+        {
+            SelectedTransport = prevSelected;
+        }
+        else if (prevSelected is not null)
+        {
+            SelectedTransport = prevSelected;
+        }
+        else if (FilteredTransports.Count > 0)
+        {
+            SelectedTransport = FilteredTransports[0];
+        }
     }
 }

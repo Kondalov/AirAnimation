@@ -4,6 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AirAnimation 3D Map Engine</title>
+<script>
+  window.onerror = function(msg, url, line, col, error) {
+    if(window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage(JSON.stringify({type: 'js_error', message: 'Global Error: ' + msg + ' at ' + line + ':' + col}));
+    }
+  };
+</script>
 <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
 <script type="importmap">
@@ -15,12 +22,16 @@
   }
 </script>
 <script type="module">
-  import * as THREE from 'three';
-  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-  window.THREE = THREE;
-  window.GLTFLoader = GLTFLoader;
-  window._threeReady = true;
-  window.dispatchEvent(new Event('three-ready'));
+  try {
+    const THREE = await import('three');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    window.THREE = THREE;
+    window.GLTFLoader = GLTFLoader;
+    window._threeReady = true;
+    window.dispatchEvent(new Event('three-ready'));
+  } catch (e) {
+    sendErrorToCSharp('THREE_MODULE_ERROR: ' + e.message + ' | ' + e.stack);
+  }
 </script>
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <style>
@@ -366,52 +377,95 @@ const threeCustomLayer = {
         this.camera = new window.THREE.Camera();
         this.scene = new window.THREE.Scene();
 
-        const directionalLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
-        directionalLight.position.set(0, -70, 100).normalize();
-        this.scene.add(directionalLight);
-        this.scene.add(new window.THREE.AmbientLight(0xffffff, 0.8));
+        // Multi-directional lighting so models are brilliantly lit from all angles
+        const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x666666, 2.5);
+        this.scene.add(hemiLight);
 
-        this.renderer = new window.THREE.WebGLRenderer({
-            canvas: map.getCanvas(),
-            context: gl,
-            antialias: true
-        });
-        this.renderer.autoClear = false;
+        const dirLight1 = new window.THREE.DirectionalLight(0xffffff, 2.5);
+        dirLight1.position.set(50, 50, 100).normalize();
+        this.scene.add(dirLight1);
+
+        const dirLight2 = new window.THREE.DirectionalLight(0xffffff, 2.0);
+        dirLight2.position.set(-50, -50, 100).normalize();
+        this.scene.add(dirLight2);
+
+        this.scene.add(new window.THREE.AmbientLight(0xffffff, 2.0));
+
+        if (this.model) {
+            this.scene.add(this.model);
+        }
+
+        if (!this.renderer) {
+            this.renderer = new window.THREE.WebGLRenderer({
+                canvas: map.getCanvas(),
+                context: gl,
+                antialias: true
+            });
+            this.renderer.autoClear = false;
+        }
         
         window.threeLayer = this;
     },
     render(gl, matrix) {
         if (!this.model) return;
 
-        const mc = maplibregl.MercatorCoordinate.fromLngLat(
-            [state.currentLon, state.currentLat],
-            0 // Altitude can be adjusted
-        );
+        try {
+            // Re-attach model if scene was cleared by style changes
+            if (!this.scene.children.includes(this.model)) {
+                this.scene.add(this.model);
+            }
 
-        // Calculate scale to keep the model a fixed pixel size on screen, regardless of zoom
-        // 512 is the base tile size of the world at zoom 0.
-        const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
-        const s = state.transportSize * mercatorPerPixel; 
+            // Ensure MapLibre scissor or stencil tests don't clip Three.js rendering
+            gl.disable(gl.SCISSOR_TEST);
+            gl.disable(gl.STENCIL_TEST);
+            
+            // Clear depth buffer so map tiles don't occlude or Z-fight with the 3D model
+            gl.clear(gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LEQUAL);
+            gl.depthMask(true);
+            gl.colorMask(true, true, true, true);
 
-        // Adjust model orientation to map: MapLibre is Z-up, Three is Y-up
-        const rotationX = new window.THREE.Matrix4().makeRotationX(Math.PI / 2);
-        // Map heading (0 is North) vs Model heading (usually Z is forward)
-        const rotationZ = new window.THREE.Matrix4().makeRotationZ(-state.currentHeading * Math.PI / 180);
-        // Banking roll
-        const roll = new window.THREE.Matrix4().makeRotationY(state.currentBankRoll * Math.PI / 180);
+            const mc = maplibregl.MercatorCoordinate.fromLngLat(
+                [state.currentLon, state.currentLat],
+                0
+            );
 
-        const m = new window.THREE.Matrix4().fromArray(matrix);
-        const l = new window.THREE.Matrix4()
-            .makeTranslation(mc.x, mc.y, mc.z)
-            .scale(new window.THREE.Vector3(s, -s, s))
-            .multiply(rotationZ)
-            .multiply(roll)
-            .multiply(rotationX);
+            const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
+            const s = (state.transportSize || 64) * mercatorPerPixel; 
 
-        this.camera.projectionMatrix = m.multiply(l);
-        this.renderer.resetState();
-        this.renderer.render(this.scene, this.camera);
-        map.triggerRepaint();
+            const rotationX = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(1, 0, 0), Math.PI / 2);
+            const rotationZ = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), -state.currentHeading * Math.PI / 180);
+            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), state.currentBankRoll * Math.PI / 180);
+
+            const m = new window.THREE.Matrix4().fromArray(matrix);
+            
+            // Standard MapLibre Three.js CustomLayer coordinate system:
+            // Translation -> Scale(s, -s, s) -> RotationX(PI/2) -> RotationZ(-heading) -> Roll
+            const l = new window.THREE.Matrix4()
+                .makeTranslation(mc.x, mc.y, mc.z)
+                .scale(new window.THREE.Vector3(s, -s, s))
+                .multiply(rotationX)
+                .multiply(rotationZ)
+                .multiply(roll);
+
+            this.camera.projectionMatrix = m.multiply(l);
+            this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+            
+            this.renderer.resetState();
+            this.renderer.render(this.scene, this.camera);
+            
+            if (!this._hasLoggedSuccess) {
+                this._hasLoggedSuccess = true;
+                sendErrorToCSharp(`3D_RENDER_OK: Lon=${state.currentLon}, Lat=${state.currentLat}, s=${s}, Heading=${state.currentHeading}`);
+            }
+        } catch (err) {
+            sendErrorToCSharp(`3D_RENDER_ERROR: ${err.message} | ${err.stack}`);
+        }
+        
+        if (state.animPlaying) {
+            map.triggerRepaint();
+        }
     }
 };
 
@@ -599,7 +653,10 @@ function rebuildLayers() {
     });
   }
 
-  // Note: 3D Transport layer is added separately via 'three-ready' event in map.on('load')
+  // Ensure 3D Transport layer is present
+  if (window._threeReady && !map.getLayer('3d-model-layer')) {
+    map.addLayer(threeCustomLayer);
+  }
 }
 
 function getTrailPaintProperties() {
@@ -796,60 +853,74 @@ window.bridge = {
     if (window.threeLayer && window.GLTFLoader) {
         try {
             const loader = new window.GLTFLoader();
-            // Fetch from local appassets virtual host
             const modelUrl = `https://appassets.local/Models/${id}.glb`;
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage(JSON.stringify({type: 'js_error', message: 'LOADING_MODEL_URL: ' + modelUrl}));
+            }
             const gltf = await loader.loadAsync(modelUrl);
             
             if (window.threeLayer.model) {
                 window.threeLayer.scene.remove(window.threeLayer.model);
             }
             
-            // Recenter model: center X and Z, but put bottom at Y=0 so it sits on the ground
+            // Recenter and normalize
             const box = new window.THREE.Box3().setFromObject(gltf.scene);
             const center = box.getCenter(new window.THREE.Vector3());
-            gltf.scene.position.x -= center.x;
-            gltf.scene.position.z -= center.z;
-            gltf.scene.position.y -= box.min.y;
-            
-            // Normalize scale so the model is 1 unit long
             const sizeVec = box.getSize(new window.THREE.Vector3());
-            const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z);
-            if (maxDim > 0) {
-                const normalizedScale = 1.0 / maxDim;
-                gltf.scene.scale.set(normalizedScale, normalizedScale, normalizedScale);
-            }
-            
-            // Fix orientation (vehicles usually face forward along Z)
-            gltf.scene.rotation.y = Math.PI;
+            const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1.0;
+            const normalizedScale = 1.0 / maxDim;
 
-            // Force DoubleSide and disable depthTest to guarantee it draws ON TOP of the map
-            gltf.scene.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    child.material.side = window.THREE.DoubleSide;
-                    child.material.depthTest = false; // Disable depth testing!
+            // 1. Center the geometry at (0,0) with bottom at Y=0
+            gltf.scene.position.set(-center.x, -box.min.y, -center.z);
+
+            // 2. Put inside an inner group for rotation and scaling
+            const innerGroup = new window.THREE.Group();
+            innerGroup.add(gltf.scene);
+            innerGroup.rotation.y = Math.PI; // Face forward along Z
+            innerGroup.scale.setScalar(normalizedScale);
+
+            // 3. Ensure all materials are visible and frustum culling is disabled
+            innerGroup.traverse((child) => {
+                child.frustumCulled = false;
+                if (child.isMesh) {
+                    if (child.material) {
+                        child.material.side = window.THREE.DoubleSide;
+                        child.material.depthTest = true;
+                        child.material.depthWrite = true;
+                    }
                 }
             });
 
-            // Wrap in a Group so the normalization is preserved when we override the matrix in render()
             const wrapperGroup = new window.THREE.Group();
-            wrapperGroup.add(gltf.scene);
-            
-            // DEBUG: Add a giant red cube to verify Three.js rendering pipeline works!
-            const geometry = new window.THREE.BoxGeometry( 1, 1, 1 ); 
-            const material = new window.THREE.MeshBasicMaterial( {color: 0xff0000, depthTest: false, side: window.THREE.DoubleSide} ); 
-            const cube = new window.THREE.Mesh( geometry, material ); 
-            cube.position.set(0, 0, 0); // Put it exactly at the center
-            wrapperGroup.add( cube );
+            wrapperGroup.add(innerGroup);
 
             window.threeLayer.model = wrapperGroup;
             window.threeLayer.scene.add(wrapperGroup);
+            
+            // Remove 2D marker since 3D model succeeded
+            if (state.transportMarker) {
+                state.transportMarker.remove();
+                state.transportMarker = null;
+            }
             map.triggerRepaint();
         } catch (e) {
             console.warn("Failed to load 3D model, falling back to SVG", e);
-            updateTransportMarkerDOM(); // Fallback
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage(JSON.stringify({type: 'js_error', message: 'GLTF_LOAD_ERROR: ' + (e.message || String(e))}));
+            }
+            
+            // 1. Clear any 3D model from scene
+            if (window.threeLayer && window.threeLayer.model) {
+                window.threeLayer.scene.remove(window.threeLayer.model);
+                window.threeLayer.model = null;
+            }
+            
+            // 2. Create / restore 2D SVG marker
+            createOrUpdateTransportMarker();
+            map.triggerRepaint();
         }
     } else {
-        updateTransportMarkerDOM(); // Fallback
+        createOrUpdateTransportMarker();
     }
     
     if (state.routeCoords && state.routeCoords.length >= 2) {
@@ -938,7 +1009,7 @@ window.bridge = {
         });
         
         map.setStyle(styleJson);
-        map.setProjection({ type: 'globe' });
+        // map.setProjection({ type: 'globe' });
         map.once('styledata', () => { rebuildLayers(); });
         return;
       } catch (e) {
@@ -964,7 +1035,7 @@ window.bridge = {
           });
         }
         map.setStyle(styleJson);
-        map.setProjection({ type: 'globe' });
+        // map.setProjection({ type: 'globe' });
         map.once('styledata', () => { rebuildLayers(); });
         return;
       } catch (e) {
@@ -973,7 +1044,7 @@ window.bridge = {
     }
     
     map.setStyle(style);
-    map.setProjection({ type: 'globe' });
+    // map.setProjection({ type: 'globe' });
     map.once('styledata', () => { rebuildLayers(); });
   },
 
@@ -1180,6 +1251,20 @@ function updateTransportMarkerDOM() {
       inner.style.height = `${sz}px`;
       inner.innerHTML = state.transportSvg || '';
     }
+  }
+}
+
+function createOrUpdateTransportMarker() {
+  if (!state.transportMarker) {
+    state.transportMarker = new maplibregl.Marker({ 
+      element: createTransportDOM(),
+      rotationAlignment: 'map'
+    })
+      .setLngLat([state.currentLon, state.currentLat])
+      .addTo(map);
+  } else {
+    state.transportMarker.setLngLat([state.currentLon, state.currentLat]);
+    updateTransportMarkerDOM();
   }
 }
 

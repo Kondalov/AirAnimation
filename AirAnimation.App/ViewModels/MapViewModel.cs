@@ -25,7 +25,7 @@ public sealed partial class MapViewModel : ObservableObject
 
     public async Task SetTransportAsync(TransportModel transport)
     {
-        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, transport.DefaultSpeed);
+        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, 64, transport.DefaultSpeed);
     }
 
     public Task SetTransportSizeAsync(double size) =>
