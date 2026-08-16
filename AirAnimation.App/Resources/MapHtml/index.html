@@ -478,7 +478,8 @@ const threeCustomLayer = {
                 this.scene.add(this.model);
             }
 
-            // Ensure MapLibre scissor or stencil tests don't clip Three.js rendering
+            // Disable face culling and scissor tests so triangles are never clipped by MapLibre state
+            gl.disable(gl.CULL_FACE);
             gl.disable(gl.SCISSOR_TEST);
             gl.disable(gl.STENCIL_TEST);
             
@@ -495,22 +496,22 @@ const threeCustomLayer = {
             );
 
             const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
-            const s = (state.transportSize || 64) * mercatorPerPixel; 
-
+            const s = (state.transportSize || 84) * mercatorPerPixel;
             const headingAngle = state.effectiveAngle !== undefined ? state.effectiveAngle : state.currentHeading;
+            const yawAngle = (180 - headingAngle) * Math.PI / 180;
+            const rotationYaw = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), yawAngle);
+            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), state.currentBankRoll * Math.PI / 180);
             const rotationX = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(1, 0, 0), Math.PI / 2);
-            const rotationZ = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), -headingAngle * Math.PI / 180);
-            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), state.currentBankRoll * Math.PI / 180);
 
             const m = new window.THREE.Matrix4().fromArray(rawMatrix);
             
             // Standard MapLibre Three.js CustomLayer coordinate system:
-            // Translation -> Scale(s, -s, s) -> RotationX(PI/2) -> RotationZ(-heading) -> Roll
+            // Translation -> Scale(s, -s, s) -> RotationX(PI/2) -> RotationYaw(heading) -> Roll
             const l = new window.THREE.Matrix4()
                 .makeTranslation(mc.x, mc.y, mc.z)
                 .scale(new window.THREE.Vector3(s, -s, s))
                 .multiply(rotationX)
-                .multiply(rotationZ)
+                .multiply(rotationYaw)
                 .multiply(roll);
 
             this.camera.projectionMatrix = m.multiply(l);
