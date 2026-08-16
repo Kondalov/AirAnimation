@@ -6,7 +6,22 @@
 <title>AirAnimation 3D Map Engine</title>
 <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://appassets.local/Resources/MapHtml/three.module.min.js",
+      "three/addons/": "https://appassets.local/Resources/MapHtml/jsm/"
+    }
+  }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  window.THREE = THREE;
+  window.GLTFLoader = GLTFLoader;
+  window._threeReady = true;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -229,12 +244,40 @@ const map = new maplibregl.Map({
   bearing: 0,
   attributionControl: false,
   antialias: true,
-  maxPitch: 85,
-  projection: { type: 'globe' }
+  maxPitch: 85
 });
 
 map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+
+// ═══════════════════════════════════════════════════════════════// ═══════════════════════════════════════════════════════════════
+//  ERROR INTERCEPTOR FOR DEBUGGING
+// ═══════════════════════════════════════════════════════════════
+function sendErrorToCSharp(msg) {
+    try {
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage(JSON.stringify({ type: 'js_error', message: String(msg) }));
+        }
+    } catch(e) {}
+}
+
+window.onerror = function(msg, url, line, col, error) {
+    sendErrorToCSharp(`Global Error: ${msg} at ${url}:${line}:${col}`);
+    return false;
+};
+window.addEventListener('unhandledrejection', function(event) {
+    sendErrorToCSharp(`Promise Rejection: ${event.reason}`);
+});
+const origError = console.error;
+console.error = function(...args) {
+    sendErrorToCSharp(`Console Error: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+    origError.apply(console, args);
+};
+const origWarn = console.warn;
+console.warn = function(...args) {
+    sendErrorToCSharp(`Console Warn: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+    origWarn.apply(console, args);
+};
 
 // ═══════════════════════════════════════════════════════════════
 //  GLOBE MASKING FOR WEATHER
@@ -314,12 +357,81 @@ const state = {
 
 let tempMarker = null;
 
+// 3D Model Custom Layer
+const threeCustomLayer = {
+    id: '3d-model-layer',
+    type: 'custom',
+    renderingMode: '3d',
+    onAdd(map, gl) {
+        this.camera = new window.THREE.Camera();
+        this.scene = new window.THREE.Scene();
+
+        const directionalLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
+        directionalLight.position.set(0, -70, 100).normalize();
+        this.scene.add(directionalLight);
+        this.scene.add(new window.THREE.AmbientLight(0xffffff, 0.8));
+
+        this.renderer = new window.THREE.WebGLRenderer({
+            canvas: map.getCanvas(),
+            context: gl,
+            antialias: true
+        });
+        this.renderer.autoClear = false;
+        
+        window.threeLayer = this;
+    },
+    render(gl, matrix) {
+        if (!this.model) return;
+
+        const mc = maplibregl.MercatorCoordinate.fromLngLat(
+            [state.currentLon, state.currentLat],
+            0 // Altitude can be adjusted
+        );
+
+        // Calculate scale to keep the model a fixed pixel size on screen, regardless of zoom
+        // 512 is the base tile size of the world at zoom 0.
+        const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
+        const s = state.transportSize * mercatorPerPixel; 
+
+        // Adjust model orientation to map: MapLibre is Z-up, Three is Y-up
+        const rotationX = new window.THREE.Matrix4().makeRotationX(Math.PI / 2);
+        // Map heading (0 is North) vs Model heading (usually Z is forward)
+        const rotationZ = new window.THREE.Matrix4().makeRotationZ(-state.currentHeading * Math.PI / 180);
+        // Banking roll
+        const roll = new window.THREE.Matrix4().makeRotationY(state.currentBankRoll * Math.PI / 180);
+
+        const m = new window.THREE.Matrix4().fromArray(matrix);
+        const l = new window.THREE.Matrix4()
+            .makeTranslation(mc.x, mc.y, mc.z)
+            .scale(new window.THREE.Vector3(s, -s, s))
+            .multiply(rotationZ)
+            .multiply(roll)
+            .multiply(rotationX);
+
+        this.camera.projectionMatrix = m.multiply(l);
+        this.renderer.resetState();
+        this.renderer.render(this.scene, this.camera);
+        map.triggerRepaint();
+    }
+};
+
 // ═══════════════════════════════════════════════════════════════
 //  MAP READY & LAYERS
 // ═══════════════════════════════════════════════════════════════
-map.on('load', () => {
+map.on('load', async () => {
   document.getElementById('loader').style.display = 'none';
+
+  // Initialize map layers immediately — don't block on Three.js
   rebuildLayers();
+
+  // When Three.js finishes loading in the background, add the 3D layer
+  if (window._threeReady) {
+    if (!map.getLayer('3d-model-layer')) map.addLayer(threeCustomLayer);
+  } else {
+    window.addEventListener('three-ready', () => {
+      if (!map.getLayer('3d-model-layer')) map.addLayer(threeCustomLayer);
+    }, { once: true });
+  }
 
   map.on('click', (e) => {
     if (state.animPlaying) return;
@@ -486,6 +598,8 @@ function rebuildLayers() {
       }
     });
   }
+
+  // Note: 3D Transport layer is added separately via 'three-ready' event in map.on('load')
 }
 
 function getTrailPaintProperties() {
@@ -668,11 +782,76 @@ window.bridge = {
     map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
   },
 
-  setTransport({ svg, size, speedKmh }) {
+  async setTransport({ id, svg, size, speedKmh }) {
     state.transportSvg = svg;
     if (size) state.transportSize = size;
     if (speedKmh) state.transportSpeed = speedKmh;
-    updateTransportMarkerDOM();
+    
+    // Hide old 2D marker
+    if (state.transportMarker) {
+        state.transportMarker.remove();
+        state.transportMarker = null;
+    }
+    
+    if (window.threeLayer && window.GLTFLoader) {
+        try {
+            const loader = new window.GLTFLoader();
+            // Fetch from local appassets virtual host
+            const modelUrl = `https://appassets.local/Models/${id}.glb`;
+            const gltf = await loader.loadAsync(modelUrl);
+            
+            if (window.threeLayer.model) {
+                window.threeLayer.scene.remove(window.threeLayer.model);
+            }
+            
+            // Recenter model: center X and Z, but put bottom at Y=0 so it sits on the ground
+            const box = new window.THREE.Box3().setFromObject(gltf.scene);
+            const center = box.getCenter(new window.THREE.Vector3());
+            gltf.scene.position.x -= center.x;
+            gltf.scene.position.z -= center.z;
+            gltf.scene.position.y -= box.min.y;
+            
+            // Normalize scale so the model is 1 unit long
+            const sizeVec = box.getSize(new window.THREE.Vector3());
+            const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z);
+            if (maxDim > 0) {
+                const normalizedScale = 1.0 / maxDim;
+                gltf.scene.scale.set(normalizedScale, normalizedScale, normalizedScale);
+            }
+            
+            // Fix orientation (vehicles usually face forward along Z)
+            gltf.scene.rotation.y = Math.PI;
+
+            // Force DoubleSide and disable depthTest to guarantee it draws ON TOP of the map
+            gltf.scene.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.side = window.THREE.DoubleSide;
+                    child.material.depthTest = false; // Disable depth testing!
+                }
+            });
+
+            // Wrap in a Group so the normalization is preserved when we override the matrix in render()
+            const wrapperGroup = new window.THREE.Group();
+            wrapperGroup.add(gltf.scene);
+            
+            // DEBUG: Add a giant red cube to verify Three.js rendering pipeline works!
+            const geometry = new window.THREE.BoxGeometry( 1, 1, 1 ); 
+            const material = new window.THREE.MeshBasicMaterial( {color: 0xff0000, depthTest: false, side: window.THREE.DoubleSide} ); 
+            const cube = new window.THREE.Mesh( geometry, material ); 
+            cube.position.set(0, 0, 0); // Put it exactly at the center
+            wrapperGroup.add( cube );
+
+            window.threeLayer.model = wrapperGroup;
+            window.threeLayer.scene.add(wrapperGroup);
+            map.triggerRepaint();
+        } catch (e) {
+            console.warn("Failed to load 3D model, falling back to SVG", e);
+            updateTransportMarkerDOM(); // Fallback
+        }
+    } else {
+        updateTransportMarkerDOM(); // Fallback
+    }
+    
     if (state.routeCoords && state.routeCoords.length >= 2) {
       placeTransportAtProgress(state.animProgress || 0);
     }
@@ -1506,15 +1685,22 @@ function placeTransportAtProgress(p) {
 
   if (isNaN(targetLon) || isNaN(targetLat)) return;
 
-  if (!state.transportMarker) {
-    state.transportMarker = new maplibregl.Marker({ 
-      element: createTransportDOM(),
-      rotationAlignment: 'map'
-    })
-      .setLngLat([targetLon, targetLat])
-      .addTo(map);
-  } else {
-    state.transportMarker.setLngLat([targetLon, targetLat]);
+  const has3DModel = window.threeLayer && window.threeLayer.model;
+
+  if (!has3DModel) {
+      if (!state.transportMarker) {
+        state.transportMarker = new maplibregl.Marker({ 
+          element: createTransportDOM(),
+          rotationAlignment: 'map'
+        })
+          .setLngLat([targetLon, targetLat])
+          .addTo(map);
+      } else {
+        state.transportMarker.setLngLat([targetLon, targetLat]);
+      }
+  } else if (state.transportMarker) {
+      state.transportMarker.remove();
+      state.transportMarker = null;
   }
 
   if (state.smoothAnimation && (state.animPlaying || state.exportMode)) {
@@ -1580,19 +1766,22 @@ function placeTransportAtProgress(p) {
          effectiveAngle = (vehicleHeading + state.modelAngleOffset) % 360;
       }
 
-      // Apply true heading rotation to the wrapper (MapLibre marker container)
-      state.transportMarker.setRotation(effectiveAngle);
-
-      // Apply banking tilt to inner container
-      const wrapper = state.transportMarker.getElement();
-      if (wrapper && wrapper.firstChild) {
-        wrapper.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
+      // If we are using 2D fallback marker
+      if (state.transportMarker) {
+        state.transportMarker.setRotation(effectiveAngle);
+        const wrapper = state.transportMarker.getElement();
+        if (wrapper && wrapper.firstChild) {
+          wrapper.firstChild.style.transform = `rotateY(${state.currentBankRoll}deg)`;
+        }
       }
 
       // Camera Follow
       if (state.cameraFollow && (state.animPlaying || state.exportMode)) {
         applyUnityCameraFollow(targetLon, targetLat, vehicleHeading);
       }
+      
+      // Repaint map to update 3D model
+      map.triggerRepaint();
 }
 
 function applyUnityCameraFollow(targetLon, targetLat, vehicleHeading) {

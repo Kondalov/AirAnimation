@@ -18,16 +18,34 @@ public sealed class TransportModel
 
     private static List<TransportModel> BuildAll() =>
     [
-        // ─── AUTO ───────────────────────────────────────────────────
-        new() { Id="car",        Name="Легковой автомобиль", Category="Авто",     Emoji="🚗",  DefaultSpeed=90,  FollowRoads=true,  SvgIcon=SvgIcons.Car },
-        new() { Id="suv",        Name="Внедорожник",         Category="Авто",     Emoji="🚙",  DefaultSpeed=85,  FollowRoads=true,  SvgIcon=SvgIcons.Suv },
-        new() { Id="sports_car", Name="Спорткар",            Category="Авто",     Emoji="🏎️", DefaultSpeed=150, FollowRoads=true,  SvgIcon=SvgIcons.SportsCar },
-        new() { Id="convertible",Name="Кабриолет",           Category="Авто",     Emoji="🚗",  DefaultSpeed=110, FollowRoads=true,  SvgIcon=SvgIcons.Convertible },
-        new() { Id="pickup",     Name="Пикап",               Category="Авто",     Emoji="🛻",  DefaultSpeed=80,  FollowRoads=true,  SvgIcon=SvgIcons.Pickup },
-        new() { Id="retro_car",  Name="Ретро-автомобиль",    Category="Авто",     Emoji="🚘",  DefaultSpeed=60,  FollowRoads=true,  SvgIcon=SvgIcons.RetroCar },
+        // ─── AUTO (MODERN & PREMIUM) ────────────────────────────────
+        new() { Id="tesla_s_plaid",  Name="Tesla Model S",       Category="Авто", Emoji="🚗", DefaultSpeed=160, FollowRoads=true, SvgIcon=SvgIcons.SportsCar },
+        new() { Id="tesla_cybertruck",Name="Tesla Cybertruck",   Category="Авто", Emoji="🛻", DefaultSpeed=140, FollowRoads=true, SvgIcon=SvgIcons.Pickup },
+        new() { Id="porsche_taycan", Name="Porsche Taycan",      Category="Авто", Emoji="🏎️", DefaultSpeed=170, FollowRoads=true, SvgIcon=SvgIcons.SportsCar },
+        new() { Id="lucid_air",      Name="Lucid Air",           Category="Авто", Emoji="🚗", DefaultSpeed=150, FollowRoads=true, SvgIcon=SvgIcons.Car },
+        new() { Id="hyundai_ioniq6", Name="Hyundai Ioniq 6",     Category="Авто", Emoji="🚘", DefaultSpeed=130, FollowRoads=true, SvgIcon=SvgIcons.Car },
+        
+        new() { Id="rivian_r1s",     Name="Rivian R1S",          Category="Авто", Emoji="🚙", DefaultSpeed=120, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="volvo_ex90",     Name="Volvo EX90",          Category="Авто", Emoji="🚙", DefaultSpeed=110, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="bmw_ix",         Name="BMW iX",              Category="Авто", Emoji="🚙", DefaultSpeed=130, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="genesis_gv60",   Name="Genesis GV60",        Category="Авто", Emoji="🚙", DefaultSpeed=120, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="defender_110",   Name="Defender 110",        Category="Авто", Emoji="🚙", DefaultSpeed=110, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        
+        new() { Id="audi_etron_gt",  Name="Audi e-tron GT",      Category="Авто", Emoji="🏎️", DefaultSpeed=160, FollowRoads=true, SvgIcon=SvgIcons.SportsCar },
+        new() { Id="corvette_eray",  Name="Corvette E-Ray",      Category="Авто", Emoji="🏎️", DefaultSpeed=180, FollowRoads=true, SvgIcon=SvgIcons.SportsCar },
+        new() { Id="mustang_mache",  Name="Mustang Mach-E",      Category="Авто", Emoji="🚙", DefaultSpeed=140, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="zeekr_001",      Name="Zeekr 001",           Category="Авто", Emoji="🏎️", DefaultSpeed=150, FollowRoads=true, SvgIcon=SvgIcons.SportsCar },
+        new() { Id="lotus_eletre",   Name="Lotus Eletre",        Category="Авто", Emoji="🚙", DefaultSpeed=160, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+
+        new() { Id="toyota_prius",   Name="Toyota Prius",        Category="Авто", Emoji="🚗", DefaultSpeed=110, FollowRoads=true, SvgIcon=SvgIcons.Car },
+        new() { Id="vw_idbuzz",      Name="VW ID. Buzz",         Category="Авто", Emoji="🚐", DefaultSpeed=100, FollowRoads=true, SvgIcon=SvgIcons.Van },
+        new() { Id="kia_ev9",        Name="Kia EV9",             Category="Авто", Emoji="🚙", DefaultSpeed=120, FollowRoads=true, SvgIcon=SvgIcons.Suv },
+        new() { Id="mini_cooper_se", Name="Mini Cooper SE",      Category="Авто", Emoji="🚘", DefaultSpeed=100, FollowRoads=true, SvgIcon=SvgIcons.Car },
+        new() { Id="polestar_2",     Name="Polestar 2",          Category="Авто", Emoji="🚗", DefaultSpeed=130, FollowRoads=true, SvgIcon=SvgIcons.Car },
+
+        // Utility Auto
         new() { Id="bus",        Name="Автобус",             Category="Авто",     Emoji="🚌",  DefaultSpeed=70,  FollowRoads=true,  SvgIcon=SvgIcons.Bus },
         new() { Id="truck",      Name="Грузовик",            Category="Авто",     Emoji="🚛",  DefaultSpeed=75,  FollowRoads=true,  SvgIcon=SvgIcons.Truck },
-        new() { Id="van",        Name="Минивэн",             Category="Авто",     Emoji="🚐",  DefaultSpeed=80,  FollowRoads=true,  SvgIcon=SvgIcons.Van },
         new() { Id="tractor",    Name="Трактор",             Category="Авто",     Emoji="🚜",  DefaultSpeed=30,  FollowRoads=true,  SvgIcon=SvgIcons.Tractor },
 
         // ─── AVIATION ───────────────────────────────────────────────

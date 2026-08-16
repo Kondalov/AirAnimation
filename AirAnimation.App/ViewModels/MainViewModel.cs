@@ -43,7 +43,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async void OnTransportChanged(object? sender, TransportModel transport)
     {
-        await MapViewModel.SetTransportAsync(transport.SvgIcon, TransportViewModel.TransportSize, transport.DefaultSpeed);
+        await MapViewModel.SetTransportAsync(transport);
         StatusMessage = $"Транспорт: {transport.Name}";
     }
 

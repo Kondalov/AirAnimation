@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using AirAnimation.App.Services;
+using AirAnimation.App.Models;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace AirAnimation.App.ViewModels;
@@ -22,8 +23,10 @@ public sealed partial class MapViewModel : ObservableObject
 
     public void AttachWebView(WebView2 wv) => _bridge.Attach(wv);
 
-    public Task SetTransportAsync(string svgContent, double size, double speedKmh) =>
-        _bridge.SetTransportAsync(svgContent, size, speedKmh);
+    public async Task SetTransportAsync(TransportModel transport)
+    {
+        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, transport.DefaultSpeed);
+    }
 
     public Task SetTransportSizeAsync(double size) =>
         _bridge.SetTransportSizeAsync(size);

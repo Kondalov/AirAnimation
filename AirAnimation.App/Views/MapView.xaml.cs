@@ -22,19 +22,15 @@ public partial class MapView : UserControl
 
         // Allow loading local resources + internet (CDN for MapLibre)
         WebMap.CoreWebView2.Settings.AreHostObjectsAllowed = true;
+        
+        // Map Virtual Host to Base Directory so JS can fetch() local 3D models without CORS errors
+        WebMap.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            "appassets.local", 
+            AppContext.BaseDirectory, 
+            CoreWebView2HostResourceAccessKind.Allow);
 
-        // Navigate to the bundled HTML
-        var htmlPath = Path.Combine(AppContext.BaseDirectory, "Resources", "MapHtml", "index.html");
-        if (File.Exists(htmlPath))
-            WebMap.Source = new Uri(htmlPath);
-        else
-        {
-            // Fallback: load from embedded resource
-            var uri = new Uri("https://raw.githubusercontent.com/maplibre/maplibre-gl-js/main/README.md"); // placeholder
-            // Inline the HTML directly
-            var html = GetInlineHtml();
-            WebMap.NavigateToString(html);
-        }
+        // Navigate via virtual host so ES modules & importmap resolve correctly (file:// blocks ESM)
+        WebMap.Source = new Uri("https://appassets.local/Resources/MapHtml/index.html");
 
         // Attach bridge
         if (DataContext is MapViewModel vm)

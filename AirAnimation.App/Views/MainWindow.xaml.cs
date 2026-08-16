@@ -107,7 +107,7 @@ public partial class MainWindow : Window
                 _ = vm.MapViewModel.Bridge.SetMarkerVisibilityAsync(vm.AnimationViewModel.ShowCityLabels, vm.AnimationViewModel.ShowCountryFlags);
 
                 if (vm.TransportViewModel.SelectedTransport is { } t)
-                    _ = vm.MapViewModel.SetTransportAsync(t.SvgIcon, vm.TransportViewModel.TransportSize, t.DefaultSpeed);
+                    _ = vm.MapViewModel.SetTransportAsync(t);
                 else
                     vm.TransportViewModel.SelectTransport("airliner");
             };

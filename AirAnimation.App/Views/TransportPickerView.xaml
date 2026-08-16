@@ -73,8 +73,9 @@
         <Border Grid.Row="3" Margin="12,2,12,6">
             <ListBox ItemsSource="{Binding Categories}"
                      SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                     ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                     PreviewMouseWheel="TabsListBox_PreviewMouseWheel">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Orientation="Horizontal"/>

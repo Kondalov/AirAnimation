@@ -73,9 +73,19 @@ public sealed class MapBridgeService
                 case "lightningStrike":
                     LightningStrike?.Invoke(this, EventArgs.Empty);
                     break;
+                    
+                case "js_error":
+                    var msg = doc.RootElement.GetProperty("message").GetString();
+                    File.AppendAllText("JS_ERRORS.txt", $"[JS ERROR] {DateTime.Now}: {msg}\n");
+                    break;
             }
         }
-        catch { /* ignore parse errors */ }
+        catch (Exception ex)
+        {
+            try {
+                File.AppendAllText("JS_ERRORS.txt", $"[CS PARSE ERROR] {DateTime.Now}: {ex.Message}\nRaw: {e.TryGetWebMessageAsString()}\n");
+            } catch {}
+        }
     }
 
     // ── Commands to JS ────────────────────────────────────────────────────────
@@ -100,8 +110,8 @@ public sealed class MapBridgeService
     public Task ClearRouteAsync() =>
         ExecAsync("clearRoute", new { });
 
-    public Task SetTransportAsync(string svgContent, double size = 64, double speedKmh = 300) =>
-        ExecAsync("setTransport", new { svg = svgContent, size, speedKmh });
+    public Task SetTransportAsync(string id, string svgContent, double size = 64, double speedKmh = 300) =>
+        ExecAsync("setTransport", new { id, svg = svgContent, size, speedKmh });
 
     public Task SetTransportSizeAsync(double size) =>
         ExecAsync("setTransportSize", new { size });

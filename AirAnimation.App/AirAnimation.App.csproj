@@ -25,8 +25,9 @@
 
   </ItemGroup>
 
-  <!-- Copy MapLibre HTML and FFmpeg to output -->
+  <!-- Copy MapLibre HTML, Models, and FFmpeg to output -->
   <ItemGroup>
+    <Content Include="Models\**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="ffmpeg\**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources\MapHtml\**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources\Sound\**" CopyToOutputDirectory="PreserveNewest" />
