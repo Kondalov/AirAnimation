@@ -205,6 +205,8 @@ const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.jso
 
 const SATELLITE_STYLE = {
   version: 8,
+  sprite: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/sprite',
+  glyphs: 'https://basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf',
   sources: {
     sat: {
       type: 'raster',
@@ -222,6 +224,8 @@ const SATELLITE_STYLE = {
 
 const CARTOON_STYLE = {
   version: 8,
+  sprite: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/sprite',
+  glyphs: 'https://basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf',
   sources: {
     osm: {
       type: 'raster',
@@ -263,7 +267,8 @@ const map = new maplibregl.Map({
   bearing: 0,
   attributionControl: false,
   antialias: true,
-  maxPitch: 85
+  maxPitch: 85,
+  projection: { type: 'globe' }
 });
 
 map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
@@ -1082,10 +1087,6 @@ const threeCustomLayer = {
         });
         this.renderer.autoClear = false;
 
-        // Apply realistic studio environment reflection
-        const env = createStudioEnvironment(this.renderer);
-        if (env) this.scene.environment = env;
-
         if (this.model) {
             this.scene.add(this.model);
         }
@@ -1140,8 +1141,9 @@ const threeCustomLayer = {
 
             const isFlying = (state.flightAltitude && (state.orientationMode === 'flight' || 
                 (state.transportId && (state.transportId.includes('air') || state.transportId.includes('plane') || 
-                 state.transportId.includes('heli') || state.transportId.includes('drone') || 
-                 state.transportId.includes('rocket') || state.transportId.includes('ufo')))));
+                 state.transportId.includes('jet') || state.transportId.includes('heli') || 
+                 state.transportId.includes('drone') || state.transportId.includes('rocket') || 
+                 state.transportId.includes('ufo')))));
             const altitude = isFlying ? (state.flightAltitude || 1000) : 0;
 
             const mc = maplibregl.MercatorCoordinate.fromLngLat(
@@ -1171,6 +1173,7 @@ const threeCustomLayer = {
             
             this.renderer.resetState();
             this.renderer.render(this.scene, this.camera);
+            this.renderer.resetState();
         } catch (err) {
             sendErrorToCSharp(`3D_RENDER_ERROR: ${err.message} | ${err.stack}`);
         }
@@ -1268,7 +1271,7 @@ map.on('load', async () => {
   rebuildLayers();
 
   // When Three.js finishes loading in the background, add the 3D layer
-  if (window._threeReady) {
+  if (window.THREE) {
     if (!map.getLayer('3d-model-layer')) map.addLayer(threeCustomLayer);
   } else {
     window.addEventListener('three-ready', () => {
@@ -1277,8 +1280,12 @@ map.on('load', async () => {
   }
 
   // Automatically restore custom 3D layer and route layers whenever map style changes
-  map.on('style.load', () => {
-    rebuildLayers();
+  map.on('styledata', () => {
+    if (map.isStyleLoaded()) {
+      if (!map.getSource('route') || !map.getLayer('route-line')) {
+        rebuildLayers();
+      }
+    }
   });
 
   map.on('click', (e) => {
@@ -1371,46 +1378,63 @@ map.on('load', async () => {
 });
 
 function rebuildLayers() {
+  if (!map) return;
+
   // 1. Full Route Preview Layer
   if (!map.getSource('route')) {
     map.addSource('route', {
       type: 'geojson',
-      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: state.routeCoords } }
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: state.routeCoords || [] } }
     });
+  } else if (state.routeCoords && state.routeCoords.length >= 2) {
+    map.getSource('route').setData({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: state.routeCoords }
+    });
+  }
+
+  if (!map.getLayer('route-hitbox')) {
     map.addLayer({
       id: 'route-hitbox',
       type: 'line',
       source: 'route',
       paint: {
         'line-color': '#ffffff',
-        'line-width': 20,
+        'line-width': 24,
         'line-opacity': 0.0, // Invisible but clickable!
       }
     });
+  }
+  if (!map.getLayer('route-line-bg')) {
     map.addLayer({
       id: 'route-line-bg',
       type: 'line',
       source: 'route',
       paint: {
         'line-color': '#000000',
-        'line-width': 7,
-        'line-opacity': 0.35,
+        'line-width': 8,
+        'line-opacity': 0.7,
       },
       layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
         'visibility': state.animPlaying || state.exportMode ? 'none' : 'visible'
       }
     });
+  }
+  if (!map.getLayer('route-line')) {
     map.addLayer({
       id: 'route-line',
       type: 'line',
       source: 'route',
       paint: {
         'line-color': '#FFB800',
-        'line-width': 4,
-        'line-opacity': 0.85,
-        'line-dasharray': [2, 2]
+        'line-width': 5,
+        'line-opacity': 1.0
       },
       layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
         'visibility': state.animPlaying || state.exportMode ? 'none' : 'visible'
       }
     });
@@ -1422,7 +1446,8 @@ function rebuildLayers() {
       type: 'geojson',
       data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
     });
-
+  }
+  if (!map.getLayer('trail-shadow')) {
     map.addLayer({
       id: 'trail-shadow',
       type: 'line',
@@ -1430,11 +1455,12 @@ function rebuildLayers() {
       paint: {
         'line-color': '#000000',
         'line-width': 10,
-        'line-opacity': 0.35,
+        'line-opacity': 0.45,
         'line-blur': 4
       }
     });
-
+  }
+  if (!map.getLayer('trail-line')) {
     map.addLayer({
       id: 'trail-line',
       type: 'line',
@@ -1447,10 +1473,19 @@ function rebuildLayers() {
     });
   }
 
-  // Ensure 3D Transport layer is present
-  if (window._threeReady && !map.getLayer('3d-model-layer')) {
+  // 3. Ensure 3D Transport layer is present and re-attached
+  if (window.THREE && !map.getLayer('3d-model-layer')) {
     map.addLayer(threeCustomLayer);
   }
+
+  if (state.transportId) {
+    update3DVehicle(state.transportId);
+  }
+
+  if (state.routeCoords && state.routeCoords.length >= 2) {
+    placeTransportAtProgress(state.animProgress || 0);
+  }
+  map.triggerRepaint();
 }
 
 function getTrailPaintProperties() {
@@ -1488,10 +1523,14 @@ function getTrailPaintProperties() {
 }
 
 function updateLayerStyles() {
+  if (!map || !map.getStyle()) return;
   if (map.getLayer('route-line')) {
-    const vis = (state.animPlaying || state.exportMode) ? 'none' : 'visible';
+    const showRoute = (!state.animPlaying && !state.exportMode) || state.routeDrawMode === 'fullRoute';
+    const vis = showRoute ? 'visible' : 'none';
     map.setLayoutProperty('route-line', 'visibility', vis);
-    map.setLayoutProperty('route-line-bg', 'visibility', vis);
+    if (map.getLayer('route-line-bg')) {
+      map.setLayoutProperty('route-line-bg', 'visibility', vis);
+    }
   }
   if (map.getLayer('trail-line')) {
     const props = getTrailPaintProperties();
@@ -1499,6 +1538,22 @@ function updateLayerStyles() {
       map.setPaintProperty('trail-line', key, val);
     }
   }
+}
+
+function toggleDrawVisibility(visible) {
+  if (!map || !map.getStyle()) return;
+  const showRoute = visible || state.routeDrawMode === 'fullRoute';
+  const val = showRoute ? 'visible' : 'none';
+  if (map.getLayer('route-line')) map.setLayoutProperty('route-line', 'visibility', val);
+  if (map.getLayer('route-line-bg')) map.setLayoutProperty('route-line-bg', 'visibility', val);
+  if (map.getLayer('route-hitbox')) map.setLayoutProperty('route-hitbox', 'visibility', visible ? 'visible' : 'none');
+  
+  const displayVal = visible ? 'block' : 'none';
+  state.waypoints.forEach(w => {
+    if (w.marker) {
+      w.marker.getElement().style.display = displayVal;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1603,13 +1658,15 @@ window.bridge = {
 
   setRoute({ coordinates, color, width }) {
     try {
-      state.routeCoords = coordinates;
-      state.totalDist = calcTotalDist(coordinates);
+      state.routeCoords = coordinates || [];
+      state.totalDist = calcTotalDist(state.routeCoords);
 
-      if (map.getSource('route')) {
+      if (!map.getSource('route')) {
+        rebuildLayers();
+      } else {
         map.getSource('route').setData({
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates }
+          geometry: { type: 'LineString', coordinates: state.routeCoords }
         });
       }
       if (map.getSource('trail')) {
@@ -1619,16 +1676,20 @@ window.bridge = {
       updateLayerStyles();
 
       // Ensure 3D layer is attached to the map
-      if (window._threeReady && !map.getLayer('3d-model-layer')) {
+      if (window.THREE && !map.getLayer('3d-model-layer')) {
         map.addLayer(threeCustomLayer);
       }
 
-      if (coordinates.length >= 2) {
+      if (state.transportId) {
+        update3DVehicle(state.transportId);
+      }
+
+      if (state.routeCoords.length >= 2) {
         // Place transport PRECISELY at Start Waypoint (index 0)
         placeTransportAtProgress(0);
       }
       map.triggerRepaint();
-      sendErrorToCSharp(`SET_ROUTE_SUCCESS: ${coordinates.length} coords, totalDist=${(state.totalDist/1000).toFixed(1)}km, hasModel=${!!(window.threeLayer && window.threeLayer.model)}`);
+      sendErrorToCSharp(`SET_ROUTE_SUCCESS: ${state.routeCoords.length} coords, totalDist=${(state.totalDist/1000).toFixed(1)}km, hasModel=${!!(window.threeLayer && window.threeLayer.model)}`);
     } catch(err) {
       sendErrorToCSharp(`SET_ROUTE_ERROR: ${err.message} | ${err.stack}`);
     }
@@ -1719,10 +1780,34 @@ window.bridge = {
     const key = styleUrl || 'dark';
     const style = STYLES[key] || DARK_STYLE;
     
+    const onStyleReady = () => {
+      try { map.setProjection({ type: 'globe' }); } catch(e) {}
+      rebuildLayers();
+      if (state.routeCoords && state.routeCoords.length >= 2) {
+        placeTransportAtProgress(state.animProgress || 0);
+      }
+      map.triggerRepaint();
+    };
+
+    const applyStyle = (targetStyle) => {
+      map.once('styledata', onStyleReady);
+      map.once('style.load', onStyleReady);
+      map.setStyle(targetStyle);
+    };
+    
     if (key === 'satellite') {
       try {
         const res = await fetch(DARK_STYLE);
         const styleJson = await res.json();
+        
+        // Remove background and water to make it transparent for the satellite layer
+        styleJson.layers = styleJson.layers.filter(l => l.id !== 'background' && l.id !== 'water');
+        
+        // Add ESRI Satellite as base
+        styleJson.sources['sat'] = SATELLITE_STYLE.sources.sat;
+        styleJson.layers.unshift({
+          id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 }
+        });
         
         // Patch text-field to prioritize Russian language
         if (styleJson.layers) {
@@ -1736,18 +1821,7 @@ window.bridge = {
           });
         }
         
-        // Remove background and water to make it transparent for the satellite layer
-        styleJson.layers = styleJson.layers.filter(l => l.id !== 'background' && l.id !== 'water');
-        
-        // Add ESRI Satellite as base
-        styleJson.sources['sat'] = SATELLITE_STYLE.sources.sat;
-        styleJson.layers.unshift({
-          id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 }
-        });
-        
-        map.setStyle(styleJson);
-        // map.setProjection({ type: 'globe' });
-        map.once('styledata', () => { rebuildLayers(); });
+        applyStyle(styleJson);
         return;
       } catch (e) {
         console.warn('Failed to build hybrid satellite, using fallback', e);
@@ -1771,18 +1845,14 @@ window.bridge = {
             }
           });
         }
-        map.setStyle(styleJson);
-        // map.setProjection({ type: 'globe' });
-        map.once('styledata', () => { rebuildLayers(); });
+        applyStyle(styleJson);
         return;
       } catch (e) {
         console.warn('Failed to localize style, using raw URL', e);
       }
     }
     
-    map.setStyle(style);
-    // map.setProjection({ type: 'globe' });
-    map.once('styledata', () => { rebuildLayers(); });
+    applyStyle(style);
   },
 
   playAnimation({ speedMultiplier, cameraFollow, cameraPitch, cameraMode, cameraZoom, cameraBearingOffset, globeIntro, targetDurationSeconds }) {
