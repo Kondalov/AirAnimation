@@ -405,6 +405,564 @@ const state = {
 
 let tempMarker = null;
 
+// ═══════════════════════════════════════════════════════════════
+//  3D VEHICLE FACTORY & MODERN THREE.JS ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+function extractMapMatrix(matrixOrArgs) {
+    if (!matrixOrArgs) return null;
+    if (ArrayBuffer.isView(matrixOrArgs) || Array.isArray(matrixOrArgs)) {
+        return matrixOrArgs;
+    }
+    if (matrixOrArgs.defaultProjectionData && matrixOrArgs.defaultProjectionData.mainMatrix) {
+        return matrixOrArgs.defaultProjectionData.mainMatrix;
+    }
+    if (matrixOrArgs.mainMatrix) {
+        return matrixOrArgs.mainMatrix;
+    }
+    return null;
+}
+
+function buildProceduralVehicle(id) {
+    if (!window.THREE) return null;
+    const THREE = window.THREE;
+    const root = new THREE.Group();
+    root.name = 'ProceduralVehicle_' + (id || 'default');
+
+    // High quality PBR materials
+    const pbrMat = (color, metal = 0.5, rough = 0.25, emissive = 0x000000) => 
+        new THREE.MeshStandardMaterial({ 
+            color, metalness: metal, roughness: rough, emissive, side: THREE.DoubleSide 
+        });
+    const glassMat = (color = 0x88ccff, opacity = 0.65) => 
+        new THREE.MeshPhysicalMaterial({
+            color, transparent: true, opacity, roughness: 0.1, transmission: 0.0, side: THREE.DoubleSide
+        });
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8, metalness: 0.1 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xe4e4e7, roughness: 0.2, metalness: 0.8 });
+    const ledWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const ledRed = new THREE.MeshBasicMaterial({ color: 0xff1e27 });
+    const ledCyan = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+    const flameMat = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
+
+    function addWheel(parent, x, y, z, r = 0.18, w = 0.12) {
+        const tireGeom = new THREE.CylinderGeometry(r, r, w, 16);
+        tireGeom.rotateZ(Math.PI / 2);
+        const tire = new THREE.Mesh(tireGeom, wheelMat);
+        tire.position.set(x, y, z);
+        const rimGeom = new THREE.CylinderGeometry(r * 0.6, r * 0.6, w * 1.02, 12);
+        rimGeom.rotateZ(Math.PI / 2);
+        const rim = new THREE.Mesh(rimGeom, rimMat);
+        tire.add(rim);
+        parent.add(tire);
+        return tire;
+    }
+
+    const type = (id || '').toLowerCase();
+    const animUpdaters = [];
+
+    // --- CARS (Sedans / Coupes / EVs) ---
+    if (type.includes('tesla_s') || type.includes('taycan') || type.includes('lucid') || 
+        type.includes('ioniq') || type.includes('audi_etron') || type.includes('corvette') || 
+        type.includes('zeekr') || type.includes('prius') || type.includes('cooper') || 
+        type.includes('polestar')) {
+        
+        let color = 0x2563eb;
+        if (type.includes('taycan')) color = 0xd61a3c;
+        else if (type.includes('tesla_s')) color = 0xf4f4f5;
+        else if (type.includes('lucid')) color = 0x27272a;
+        else if (type.includes('ioniq')) color = 0xa1a1aa;
+        else if (type.includes('corvette')) color = 0xdc2626;
+        else if (type.includes('zeekr')) color = 0x0284c7;
+        else if (type.includes('prius')) color = 0xef4444;
+        else if (type.includes('cooper')) color = 0x15803d;
+
+        const body = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.24, 1.8), pbrMat(color, 0.7, 0.25));
+        base.position.set(0, 0.22, 0);
+        body.add(base);
+
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.26, 0.95), glassMat());
+        cabin.position.set(0, 0.44, -0.05);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.8), pbrMat(color, 0.7, 0.25));
+        roof.position.set(0, 0.58, -0.05);
+        body.add(cabin);
+        body.add(roof);
+
+        // LED Headlights & Taillights
+        const hlL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.05), ledWhite);
+        hlL.position.set(-0.28, 0.25, 0.91);
+        const hlR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.05), ledWhite);
+        hlR.position.set(0.28, 0.25, 0.91);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.04, 0.05), ledRed);
+        tail.position.set(0, 0.26, -0.91);
+        body.add(hlL); body.add(hlR); body.add(tail);
+
+        addWheel(body, -0.44, 0.18, 0.55);
+        addWheel(body, 0.44, 0.18, 0.55);
+        addWheel(body, -0.44, 0.18, -0.55);
+        addWheel(body, 0.44, 0.18, -0.55);
+
+        root.add(body);
+    }
+    // --- CYBERTRUCK ---
+    else if (type.includes('cybertruck')) {
+        const body = new THREE.Group();
+        const steel = pbrMat(0xa1a1aa, 0.9, 0.2); // Stainless steel
+
+        const base = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.32, 2.0), steel);
+        base.position.set(0, 0.26, 0);
+        const top = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.4, 4), steel);
+        top.rotation.y = Math.PI / 4;
+        top.position.set(0, 0.58, -0.1);
+        top.scale.set(1.1, 1, 2.0);
+        body.add(base); body.add(top);
+
+        const frontBar = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 0.05), ledWhite);
+        frontBar.position.set(0, 0.36, 1.01);
+        const rearBar = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 0.05), ledRed);
+        rearBar.position.set(0, 0.40, -1.01);
+        body.add(frontBar); body.add(rearBar);
+
+        addWheel(body, -0.48, 0.22, 0.65, 0.22, 0.15);
+        addWheel(body, 0.48, 0.22, 0.65, 0.22, 0.15);
+        addWheel(body, -0.48, 0.22, -0.65, 0.22, 0.15);
+        addWheel(body, 0.48, 0.22, -0.65, 0.22, 0.15);
+        root.add(body);
+    }
+    // --- SUVS / PICKUPS ---
+    else if (type.includes('r1s') || type.includes('volvo') || type.includes('ix') || 
+             type.includes('gv60') || type.includes('defender') || type.includes('mache') || 
+             type.includes('eletre') || type.includes('ev9')) {
+        let color = 0x0284c7;
+        if (type.includes('r1s')) color = 0x0f766e;
+        else if (type.includes('defender')) color = 0x3f6212;
+        else if (type.includes('volvo')) color = 0x1e3a8a;
+        else if (type.includes('ev9')) color = 0x0369a1;
+
+        const body = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.38, 1.9), pbrMat(color, 0.6, 0.3));
+        base.position.set(0, 0.32, 0);
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.36, 1.2), glassMat());
+        cabin.position.set(0, 0.65, -0.1);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.04, 1.22), pbrMat(color, 0.6, 0.3));
+        roof.position.set(0, 0.84, -0.1);
+        body.add(base); body.add(cabin); body.add(roof);
+
+        const hl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.05), ledWhite);
+        hl.position.set(0, 0.38, 0.96);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.05), ledRed);
+        tail.position.set(0, 0.42, -0.96);
+        body.add(hl); body.add(tail);
+
+        addWheel(body, -0.48, 0.22, 0.6, 0.22, 0.15);
+        addWheel(body, 0.48, 0.22, 0.6, 0.22, 0.15);
+        addWheel(body, -0.48, 0.22, -0.6, 0.22, 0.15);
+        addWheel(body, 0.48, 0.22, -0.6, 0.22, 0.15);
+        root.add(body);
+    }
+    // --- BUS / TRUCK / TRACTOR / ID.BUZZ ---
+    else if (type.includes('bus') || type.includes('truck') || type.includes('tractor') || type.includes('idbuzz')) {
+        const body = new THREE.Group();
+        if (type.includes('bus')) {
+            const hull = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.72, 3.0), pbrMat(0x2563eb, 0.4, 0.3));
+            hull.position.set(0, 0.55, 0);
+            const sideGlass = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.28, 2.6), glassMat());
+            sideGlass.position.set(0, 0.65, -0.1);
+            body.add(hull); body.add(sideGlass);
+            addWheel(body, -0.48, 0.22, 1.0, 0.22, 0.14);
+            addWheel(body, 0.48, 0.22, 1.0, 0.22, 0.14);
+            addWheel(body, -0.48, 0.22, -0.7, 0.22, 0.14);
+            addWheel(body, 0.48, 0.22, -0.7, 0.22, 0.14);
+            addWheel(body, -0.48, 0.22, -1.1, 0.22, 0.14);
+            addWheel(body, 0.48, 0.22, -1.1, 0.22, 0.14);
+        } else if (type.includes('truck')) {
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.85, 1.1), pbrMat(0xdc2626, 0.5, 0.3));
+            cab.position.set(0, 0.65, 0.6);
+            const bed = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.22, 1.6), darkMat);
+            bed.position.set(0, 0.32, -0.65);
+            const pipeL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1), pbrMat(0xe4e4e7, 0.9, 0.1));
+            pipeL.position.set(-0.48, 0.85, 0.05);
+            const pipeR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1), pbrMat(0xe4e4e7, 0.9, 0.1));
+            pipeR.position.set(0.48, 0.85, 0.05);
+            body.add(cab); body.add(bed); body.add(pipeL); body.add(pipeR);
+            addWheel(body, -0.48, 0.24, 0.8, 0.24, 0.15);
+            addWheel(body, 0.48, 0.24, 0.8, 0.24, 0.15);
+            addWheel(body, -0.48, 0.24, -0.5, 0.24, 0.15);
+            addWheel(body, 0.48, 0.24, -0.5, 0.24, 0.15);
+            addWheel(body, -0.48, 0.24, -1.0, 0.24, 0.15);
+            addWheel(body, 0.48, 0.24, -1.0, 0.24, 0.15);
+        } else if (type.includes('tractor')) {
+            const hood = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.4, 0.9), pbrMat(0x16a34a, 0.5, 0.3));
+            hood.position.set(0, 0.45, 0.35);
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.6, 0.6), glassMat());
+            cab.position.set(0, 0.75, -0.35);
+            body.add(hood); body.add(cab);
+            addWheel(body, -0.38, 0.18, 0.55, 0.18, 0.12);
+            addWheel(body, 0.38, 0.18, 0.55, 0.18, 0.12);
+            addWheel(body, -0.48, 0.36, -0.35, 0.36, 0.2);
+            addWheel(body, 0.48, 0.36, -0.35, 0.36, 0.2);
+        } else {
+            const hull = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.6, 1.8), pbrMat(0xeab308, 0.5, 0.25));
+            hull.position.set(0, 0.48, 0);
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.3, 1.4), glassMat());
+            cabin.position.set(0, 0.68, -0.1);
+            body.add(hull); body.add(cabin);
+            addWheel(body, -0.46, 0.2, 0.6, 0.2, 0.14);
+            addWheel(body, 0.46, 0.2, 0.6, 0.2, 0.14);
+            addWheel(body, -0.46, 0.2, -0.6, 0.2, 0.14);
+            addWheel(body, 0.46, 0.2, -0.6, 0.2, 0.14);
+        }
+        root.add(body);
+    }
+    // --- AIRPLANES & JETS ---
+    else if (type.includes('airliner') || type.includes('bizjet') || type.includes('fighter') || 
+             type.includes('glider') || type.includes('seaplane') || type.includes('airship') || type.includes('balloon')) {
+        const body = new THREE.Group();
+        if (type.includes('balloon')) {
+            const envelope = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), pbrMat(0xe11d48, 0.2, 0.4));
+            envelope.scale.set(1.0, 1.3, 1.0);
+            envelope.position.set(0, 1.1, 0);
+            const basket = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), pbrMat(0xb45309, 0.1, 0.8));
+            basket.position.set(0, 0.2, 0);
+            body.add(envelope); body.add(basket);
+        } else if (type.includes('airship')) {
+            const hull = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), pbrMat(0xe2e8f0, 0.3, 0.3));
+            hull.scale.set(0.9, 0.9, 2.5);
+            hull.position.set(0, 0.6, 0);
+            const gondola = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.8), darkMat);
+            gondola.position.set(0, 0.15, 0.1);
+            body.add(hull); body.add(gondola);
+        } else {
+            const planeMat = pbrMat(type.includes('fighter') ? 0x334155 : 0xf8fafc, 0.4, 0.3);
+
+            const fuseGeom = new THREE.CylinderGeometry(0.2, 0.2, 2.4, 16);
+            fuseGeom.rotateX(Math.PI / 2);
+            const fuse = new THREE.Mesh(fuseGeom, planeMat);
+            fuse.position.set(0, 0.35, 0);
+            const noseGeom = new THREE.ConeGeometry(0.2, 0.5, 16);
+            noseGeom.rotateX(-Math.PI / 2);
+            const nose = new THREE.Mesh(noseGeom, planeMat);
+            nose.position.set(0, 0.35, 1.4);
+            body.add(fuse); body.add(nose);
+
+            const wings = new THREE.Mesh(new THREE.BoxGeometry(type.includes('glider') ? 3.8 : 2.8, 0.04, 0.5), planeMat);
+            wings.position.set(0, 0.34, 0.1);
+            const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.55, 0.4), planeMat);
+            tailFin.position.set(0, 0.62, -1.0);
+            const tailStab = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.03, 0.25), planeMat);
+            tailStab.position.set(0, 0.35, -1.1);
+            body.add(wings); body.add(tailFin); body.add(tailStab);
+
+            const engGeom = new THREE.CylinderGeometry(0.09, 0.09, 0.5, 12);
+            engGeom.rotateX(Math.PI / 2);
+            const engL = new THREE.Mesh(engGeom, darkMat);
+            engL.position.set(-0.65, 0.22, 0.1);
+            const engR = new THREE.Mesh(engGeom, darkMat);
+            engR.position.set(0.65, 0.22, 0.1);
+            body.add(engL); body.add(engR);
+
+            if (type.includes('fighter')) {
+                const flameL = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.4, 8), ledCyan);
+                flameL.rotateX(Math.PI / 2);
+                flameL.position.set(-0.15, 0.35, -1.35);
+                const flameR = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.4, 8), ledCyan);
+                flameR.rotateX(Math.PI / 2);
+                flameR.position.set(0.15, 0.35, -1.35);
+                body.add(flameL); body.add(flameR);
+            }
+        }
+        root.add(body);
+    }
+    // --- HELICOPTERS (Civil & Apache) ---
+    else if (type.includes('helicopter') || type.includes('apache')) {
+        const body = new THREE.Group();
+        const heliMat = pbrMat(type.includes('apache') ? 0x27272a : 0x0284c7, 0.5, 0.3);
+
+        const pod = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 12), heliMat);
+        pod.scale.set(0.85, 0.9, 1.6);
+        pod.position.set(0, 0.5, 0.2);
+        const glass = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), glassMat());
+        glass.scale.set(0.82, 0.85, 1.2);
+        glass.position.set(0, 0.52, 0.55);
+        const tailBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.4), heliMat);
+        tailBoom.rotateX(Math.PI / 2);
+        tailBoom.position.set(0, 0.55, -0.9);
+        body.add(pod); body.add(glass); body.add(tailBoom);
+
+        const skidL = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5), darkMat);
+        skidL.rotateX(Math.PI / 2);
+        skidL.position.set(-0.35, 0.1, 0.1);
+        const skidR = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5), darkMat);
+        skidR.rotateX(Math.PI / 2);
+        skidR.position.set(0.35, 0.1, 0.1);
+        body.add(skidL); body.add(skidR);
+
+        const rotorGroup = new THREE.Group();
+        const rotorBlade1 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.02, 0.12), darkMat);
+        const rotorBlade2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 2.4), darkMat);
+        rotorGroup.add(rotorBlade1); rotorGroup.add(rotorBlade2);
+        rotorGroup.position.set(0, 0.95, 0.1);
+        body.add(rotorGroup);
+
+        const tailRotor = new THREE.Group();
+        const tailBlade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.5, 0.06), darkMat);
+        tailRotor.add(tailBlade);
+        tailRotor.position.set(0.09, 0.65, -1.6);
+        body.add(tailRotor);
+
+        animUpdaters.push((dt) => {
+            rotorGroup.rotation.y += dt * 35.0;
+            tailRotor.rotation.x += dt * 45.0;
+        });
+
+        root.add(body);
+    }
+    // --- DRONE ---
+    else if (type.includes('drone')) {
+        const body = new THREE.Group();
+        const core = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.12, 0.35), darkMat);
+        core.position.set(0, 0.3, 0);
+        body.add(core);
+
+        const arms = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.06), darkMat);
+        arms.rotation.y = Math.PI / 4;
+        arms.position.set(0, 0.3, 0);
+        const arms2 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.06), darkMat);
+        arms2.rotation.y = -Math.PI / 4;
+        arms2.position.set(0, 0.3, 0);
+        body.add(arms); body.add(arms2);
+
+        const props = [];
+        const offsets = [[0.55, 0.55], [-0.55, 0.55], [0.55, -0.55], [-0.55, -0.55]];
+        offsets.forEach(([px, pz]) => {
+            const pGroup = new THREE.Group();
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.01, 0.05), ledCyan);
+            pGroup.add(blade);
+            pGroup.position.set(px, 0.35, pz);
+            body.add(pGroup);
+            props.push(pGroup);
+        });
+
+        animUpdaters.push((dt) => {
+            props.forEach((p, idx) => p.rotation.y += dt * 40.0 * (idx % 2 === 0 ? 1 : -1));
+        });
+
+        root.add(body);
+    }
+    // --- ROCKET / SPACE SHUTTLE / SATELLITE ---
+    else if (type.includes('rocket') || type.includes('shuttle') || type.includes('satellite')) {
+        const body = new THREE.Group();
+        if (type.includes('satellite')) {
+            const bus = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), pbrMat(0xd97706, 0.8, 0.2));
+            bus.position.set(0, 0.4, 0);
+            const panelL = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.02, 0.6), pbrMat(0x1d4ed8, 0.7, 0.2));
+            panelL.position.set(-0.95, 0.4, 0);
+            const panelR = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.02, 0.6), pbrMat(0x1d4ed8, 0.7, 0.2));
+            panelR.position.set(0.95, 0.4, 0);
+            body.add(bus); body.add(panelL); body.add(panelR);
+        } else {
+            const bodyMat = pbrMat(0xf8fafc, 0.3, 0.3);
+            const stage = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 2.2, 16), bodyMat);
+            stage.rotateX(Math.PI / 2);
+            stage.position.set(0, 0.35, 0);
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.65, 16), bodyMat);
+            nose.rotateX(-Math.PI / 2);
+            nose.position.set(0, 0.35, 1.4);
+            const fin1 = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.03, 0.4), darkMat);
+            fin1.position.set(0, 0.35, -0.9);
+            const fin2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.95, 0.4), darkMat);
+            fin2.position.set(0, 0.35, -0.9);
+            body.add(stage); body.add(nose); body.add(fin1); body.add(fin2);
+
+            const plume = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.9, 12), flameMat);
+            plume.rotateX(Math.PI / 2);
+            plume.position.set(0, 0.35, -1.55);
+            body.add(plume);
+
+            animUpdaters.push((dt, time) => {
+                const s = 1.0 + 0.2 * Math.sin(time * 25.0);
+                plume.scale.set(s, s * 1.2, s);
+            });
+        }
+        root.add(body);
+    }
+    // --- SHIPS / YACHT / CRUISE / SUBMARINE ---
+    else if (type.includes('yacht') || type.includes('cruise') || type.includes('ferry') || 
+             type.includes('submarine') || type.includes('motorboat') || type.includes('kayak') || type.includes('warship')) {
+        const body = new THREE.Group();
+        const hullMat = pbrMat(type.includes('submarine') ? 0x18181b : 0xf8fafc, 0.4, 0.3);
+
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.4, 2.6), hullMat);
+        hull.position.set(0, 0.2, 0);
+        const bow = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.8, 4), hullMat);
+        bow.rotateX(-Math.PI / 2);
+        bow.rotation.z = Math.PI / 4;
+        bow.position.set(0, 0.2, 1.6);
+        body.add(hull); body.add(bow);
+
+        const cabin1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.32, 1.4), pbrMat(0xffffff, 0.2, 0.3));
+        cabin1.position.set(0, 0.52, -0.1);
+        const glassStrip = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.14, 1.2), glassMat());
+        glassStrip.position.set(0, 0.56, -0.1);
+        body.add(cabin1); body.add(glassStrip);
+
+        if (type.includes('cruise')) {
+            const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.35), pbrMat(0xdc2626, 0.3, 0.4));
+            funnel.position.set(0, 0.82, -0.4);
+            body.add(funnel);
+        }
+        root.add(body);
+    }
+    // --- RAIL / TRAIN / TGV / TRAM ---
+    else if (type.includes('train') || type.includes('tgv') || type.includes('metro') || type.includes('tram') || type.includes('monorail')) {
+        const body = new THREE.Group();
+        const trainColor = type.includes('tgv') ? 0x0284c7 : (type.includes('tram') ? 0x059669 : 0xb91c1c);
+        const trainMat = pbrMat(trainColor, 0.5, 0.3);
+
+        const car = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.65, 2.8), trainMat);
+        car.position.set(0, 0.48, 0);
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.7, 4), trainMat);
+        nose.rotateX(-Math.PI / 2);
+        nose.rotation.z = Math.PI / 4;
+        nose.position.set(0, 0.48, 1.6);
+        const windowStrip = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.2, 2.4), glassMat());
+        windowStrip.position.set(0, 0.55, 0);
+        body.add(car); body.add(nose); body.add(windowStrip);
+
+        addWheel(body, -0.44, 0.15, 0.9, 0.15, 0.1);
+        addWheel(body, 0.44, 0.15, 0.9, 0.15, 0.1);
+        addWheel(body, -0.44, 0.15, -0.9, 0.15, 0.1);
+        addWheel(body, 0.44, 0.15, -0.9, 0.15, 0.1);
+        root.add(body);
+    }
+    // --- MOTO / SCOOTER / BICYCLE ---
+    else if (type.includes('motorcycle') || type.includes('scooter') || type.includes('bicycle') || type.includes('escooter') || type.includes('skateboard')) {
+        const body = new THREE.Group();
+        const frameMat = pbrMat(0xdc2626, 0.7, 0.2);
+
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.35, 1.0), frameMat);
+        frame.position.set(0, 0.38, 0);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.04), pbrMat(0xe4e4e7, 0.9, 0.1));
+        bar.position.set(0, 0.65, 0.35);
+        body.add(frame); body.add(bar);
+
+        addWheel(body, 0, 0.24, 0.55, 0.24, 0.08);
+        addWheel(body, 0, 0.24, -0.55, 0.24, 0.08);
+        root.add(body);
+    }
+    // --- UFO / FANTASY / SPECIAL ---
+    else if (type.includes('ufo')) {
+        const body = new THREE.Group();
+        const saucer = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.4, 0.18, 24), pbrMat(0x94a3b8, 0.9, 0.1));
+        saucer.position.set(0, 0.35, 0);
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), glassMat(0x00f0ff, 0.7));
+        dome.position.set(0, 0.42, 0);
+        const core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), ledCyan);
+        core.position.set(0, 0.4, 0);
+        body.add(saucer); body.add(dome); body.add(core);
+
+        animUpdaters.push((dt) => {
+            saucer.rotation.y += dt * 3.0;
+        });
+        root.add(body);
+    }
+    // --- TANK ---
+    else if (type.includes('tank')) {
+        const body = new THREE.Group();
+        const armor = pbrMat(0x78716c, 0.4, 0.6);
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.4, 2.0), armor);
+        hull.position.set(0, 0.3, 0);
+        const turret = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.9), armor);
+        turret.position.set(0, 0.6, -0.1);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4), darkMat);
+        barrel.rotateX(Math.PI / 2);
+        barrel.position.set(0, 0.6, 0.85);
+        body.add(hull); body.add(turret); body.add(barrel);
+        root.add(body);
+    }
+    // --- DEFAULT FALLBACK STYLIZED CAR ---
+    else {
+        const body = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.28, 1.8), pbrMat(0x3b82f6, 0.6, 0.25));
+        base.position.set(0, 0.22, 0);
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.28, 0.95), glassMat());
+        cabin.position.set(0, 0.48, -0.05);
+        body.add(base); body.add(cabin);
+        addWheel(body, -0.44, 0.18, 0.55);
+        addWheel(body, 0.44, 0.18, 0.55);
+        addWheel(body, -0.44, 0.18, -0.55);
+        addWheel(body, 0.44, 0.18, -0.55);
+        root.add(body);
+    }
+
+    root.userData = {
+        update(dt, time) {
+            animUpdaters.forEach(fn => fn(dt, time));
+        }
+    };
+
+    return root;
+}
+
+function processLoadedGLTF(gltf) {
+    if (!gltf || !gltf.scene) return null;
+    const modelScene = gltf.scene;
+
+    const toRemove = [];
+    modelScene.traverse((child) => {
+        if (child.isCamera || (child.name && child.name.toLowerCase().includes('camera'))) {
+            toRemove.push(child);
+        }
+        if (child.name === 'Fabric' || (child.isMesh && child.name.toLowerCase().includes('fabric'))) {
+            toRemove.push(child);
+        }
+        if (child.isMesh) {
+            child.frustumCulled = false;
+            child.castShadow = false;
+            child.receiveShadow = false;
+            if (child.material) {
+                child.material.side = window.THREE.DoubleSide;
+                child.material.depthTest = true;
+                child.material.depthWrite = true;
+                if (child.material.metalness !== undefined) {
+                    child.material.metalness = Math.min(child.material.metalness, 0.35);
+                }
+                if (child.material.roughness !== undefined) {
+                    child.material.roughness = Math.max(child.material.roughness, 0.25);
+                }
+            }
+        }
+    });
+    toRemove.forEach(c => {
+        if (c.parent) c.parent.remove(c);
+    });
+
+    modelScene.updateMatrixWorld(true);
+    const box = new window.THREE.Box3();
+    modelScene.traverse((child) => {
+        if (child.isMesh && child.visible) {
+            box.expandByObject(child);
+        }
+    });
+
+    const center = box.getCenter(new window.THREE.Vector3());
+    const sizeVec = box.getSize(new window.THREE.Vector3());
+    const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1.0;
+    const normalizedScale = 1.0 / maxDim;
+
+    modelScene.position.set(-center.x, -box.min.y, -center.z);
+
+    const innerGroup = new window.THREE.Group();
+    innerGroup.add(modelScene);
+    innerGroup.scale.setScalar(normalizedScale);
+
+    const wrapperGroup = new window.THREE.Group();
+    wrapperGroup.add(innerGroup);
+    return wrapperGroup;
+}
+
 // 3D Model Custom Layer
 const threeCustomLayer = {
     id: '3d-model-layer',
@@ -453,15 +1011,11 @@ const threeCustomLayer = {
     },
     render(gl, matrixOrArgs) {
         if (!this.model) return;
-        // Transport appears ONLY after a route has been built (at least 2 waypoints)
-        if (!state.routeCoords || state.routeCoords.length < 2) return;
+        // Require at least 2 route coordinates or 1 waypoint
+        if ((!state.routeCoords || state.routeCoords.length < 2) && (!state.waypoints || state.waypoints.length === 0)) return;
 
         try {
-            // Extract projection matrix from MapLibre 5 args object or array
-            const rawMatrix = Array.isArray(matrixOrArgs)
-                ? matrixOrArgs
-                : (matrixOrArgs?.defaultProjectionData?.mainMatrix || matrixOrArgs?.mainMatrix);
-
+            const rawMatrix = extractMapMatrix(matrixOrArgs);
             if (!rawMatrix) return;
 
             if (!this.renderer) {
@@ -478,21 +1032,32 @@ const threeCustomLayer = {
                 this.scene.add(this.model);
             }
 
-            // Disable face culling and scissor tests so triangles are never clipped by MapLibre state
+            // Animate moving parts (propellers, rotors, flames)
+            if (this.model && this.model.userData && typeof this.model.userData.update === 'function') {
+                const dt = (state.lastFrameDt || 16.666) / 1000.0;
+                this.model.userData.update(dt, performance.now() / 1000.0);
+            }
+
+            // WebGL state isolation
             gl.disable(gl.CULL_FACE);
             gl.disable(gl.SCISSOR_TEST);
             gl.disable(gl.STENCIL_TEST);
             
-            // Clear depth buffer so map tiles don't occlude or Z-fight with the 3D model
             gl.clear(gl.DEPTH_BUFFER_BIT);
             gl.enable(gl.DEPTH_TEST);
             gl.depthFunc(gl.LEQUAL);
             gl.depthMask(true);
             gl.colorMask(true, true, true, true);
 
+            const isFlying = (state.flightAltitude && (state.orientationMode === 'flight' || 
+                (state.transportId && (state.transportId.includes('air') || state.transportId.includes('plane') || 
+                 state.transportId.includes('heli') || state.transportId.includes('drone') || 
+                 state.transportId.includes('rocket') || state.transportId.includes('ufo')))));
+            const altitude = isFlying ? (state.flightAltitude || 1000) : 0;
+
             const mc = maplibregl.MercatorCoordinate.fromLngLat(
                 [state.currentLon, state.currentLat],
-                0
+                altitude
             );
 
             const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
@@ -500,13 +1065,11 @@ const threeCustomLayer = {
             const headingAngle = state.effectiveAngle !== undefined ? state.effectiveAngle : state.currentHeading;
             const yawAngle = (180 - headingAngle) * Math.PI / 180;
             const rotationYaw = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), yawAngle);
-            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), state.currentBankRoll * Math.PI / 180);
+            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), (state.currentBankRoll || 0) * Math.PI / 180);
             const rotationX = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(1, 0, 0), Math.PI / 2);
 
             const m = new window.THREE.Matrix4().fromArray(rawMatrix);
             
-            // Standard MapLibre Three.js CustomLayer coordinate system:
-            // Translation -> Scale(s, -s, s) -> RotationX(PI/2) -> RotationYaw(heading) -> Roll
             const l = new window.THREE.Matrix4()
                 .makeTranslation(mc.x, mc.y, mc.z)
                 .scale(new window.THREE.Vector3(s, -s, s))
@@ -528,6 +1091,83 @@ const threeCustomLayer = {
         }
     }
 };
+
+function update3DVehicle(id) {
+    if (!id) id = state.transportId || 'tesla_s_plaid';
+    state.transportId = id;
+
+    if (!window.THREE) {
+        window.addEventListener('three-ready', () => update3DVehicle(id), { once: true });
+        createOrUpdateTransportMarker();
+        return;
+    }
+    if (!window.threeLayer) {
+        if (map && !map.getLayer('3d-model-layer')) {
+            map.addLayer(threeCustomLayer);
+        }
+    }
+    if (!window.threeLayer || !window.threeLayer.scene) {
+        createOrUpdateTransportMarker();
+        return;
+    }
+
+    // 1. Remove previous 3D model
+    if (window.threeLayer.model && window.threeLayer.scene) {
+        try {
+            window.threeLayer.scene.remove(window.threeLayer.model);
+        } catch(e) {}
+        window.threeLayer.model = null;
+    }
+
+    // 2. Immediately instantiate the stylized 3D model (instant procedural model)
+    const procedural = buildProceduralVehicle(id);
+    if (procedural) {
+        window.threeLayer.model = procedural;
+        window.threeLayer.scene.add(procedural);
+        if (state.transportMarker) {
+            state.transportMarker.remove();
+            state.transportMarker = null;
+        }
+    } else {
+        createOrUpdateTransportMarker();
+    }
+
+    // 3. Ensure custom layer is on map
+    if (map && !map.getLayer('3d-model-layer')) {
+        map.addLayer(threeCustomLayer);
+    }
+
+    // 4. If external GLTF loader is present, attempt background load of custom asset
+    if (window.GLTFLoader) {
+        const modelUrl = `/Models/${id}.glb`;
+        const loader = new window.GLTFLoader();
+        loader.load(
+            modelUrl,
+            (gltf) => {
+                if (state.transportId !== id) return;
+                const gltfModel = processLoadedGLTF(gltf);
+                if (gltfModel && window.threeLayer && window.threeLayer.scene) {
+                    if (window.threeLayer.model) {
+                        try { window.threeLayer.scene.remove(window.threeLayer.model); } catch(e) {}
+                    }
+                    window.threeLayer.model = gltfModel;
+                    window.threeLayer.scene.add(gltfModel);
+                    if (state.transportMarker) {
+                        state.transportMarker.remove();
+                        state.transportMarker = null;
+                    }
+                    map.triggerRepaint();
+                }
+            },
+            undefined,
+            (err) => {
+                // Procedural 3D model is already happily running!
+            }
+        );
+    }
+
+    map.triggerRepaint();
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  MAP READY & LAYERS
@@ -918,129 +1558,21 @@ window.bridge = {
   },
 
   async setTransport({ id, svg, size, speedKmh }) {
+    state.transportId = id;
     state.transportSvg = svg;
     if (size) state.transportSize = size;
     if (speedKmh) state.transportSpeed = speedKmh;
-    
-    // Hide old 2D marker
-    if (state.transportMarker) {
-        state.transportMarker.remove();
-        state.transportMarker = null;
-    }
-    
-    if (window.threeLayer && window.GLTFLoader) {
-        try {
-            const loader = new window.GLTFLoader();
-            const modelUrl = `/Models/${id}.glb`;
-            const gltf = await loader.loadAsync(modelUrl);
-            
-            if (window.threeLayer.model) {
-                window.threeLayer.scene.remove(window.threeLayer.model);
-                window.threeLayer.model = null;
-            }
-            
-            const modelScene = gltf.scene;
 
-            // Filter out non-vehicle background meshes and cameras
-            const toRemove = [];
-            modelScene.traverse((child) => {
-                if (child.isCamera || (child.name && child.name.toLowerCase().includes('camera'))) {
-                    toRemove.push(child);
-                }
-                if (child.name === 'Fabric' || (child.isMesh && child.name.toLowerCase().includes('fabric'))) {
-                    toRemove.push(child);
-                }
-                if (child.isMesh) {
-                    child.frustumCulled = false;
-                    child.castShadow = false;
-                    child.receiveShadow = false;
-                    if (child.material) {
-                        child.material.side = window.THREE.DoubleSide;
-                        child.material.depthTest = true;
-                        child.material.depthWrite = true;
-                        
-                        // Prevent pure black metallic reflection without HDR environment map
-                        if (child.material.metalness !== undefined) {
-                            child.material.metalness = Math.min(child.material.metalness, 0.25);
-                        }
-                        if (child.material.roughness !== undefined) {
-                            child.material.roughness = Math.max(child.material.roughness, 0.35);
-                        }
-                        
-                        // Glass / transmissive material support
-                        if (child.material.transmission && child.material.transmission > 0) {
-                            child.material.transmission = 0;
-                            child.material.transparent = true;
-                            child.material.opacity = 0.6;
-                            child.material.color = new window.THREE.Color(0x80bfff);
-                        }
-                    }
-                }
-            });
-            toRemove.forEach(c => {
-                if (c.parent) c.parent.remove(c);
-            });
+    update3DVehicle(id);
 
-            // CRITICAL: Update world matrix hierarchy before measuring bounds!
-            modelScene.updateMatrixWorld(true);
-
-            // Compute bounds strictly on visible vehicle meshes
-            const box = new window.THREE.Box3();
-            modelScene.traverse((child) => {
-                if (child.isMesh && child.visible) {
-                    box.expandByObject(child);
-                }
-            });
-
-            const center = box.getCenter(new window.THREE.Vector3());
-            const sizeVec = box.getSize(new window.THREE.Vector3());
-            const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1.0;
-            const normalizedScale = 1.0 / maxDim;
-
-            // Center the geometry at (0,0) with bottom wheels at ground level Y=0
-            modelScene.position.set(-center.x, -box.min.y, -center.z);
-
-            const innerGroup = new window.THREE.Group();
-            innerGroup.add(modelScene);
-            innerGroup.scale.setScalar(normalizedScale);
-
-            const wrapperGroup = new window.THREE.Group();
-            wrapperGroup.add(innerGroup);
-
-            window.threeLayer.model = wrapperGroup;
-            window.threeLayer.scene.add(wrapperGroup);
-            
-            // Ensure 3D layer is attached to map
-            if (map && !map.getLayer('3d-model-layer')) {
-                map.addLayer(threeCustomLayer);
-            }
-
-            // Remove 2D marker since 3D model succeeded
-            if (state.transportMarker) {
-                state.transportMarker.remove();
-                state.transportMarker = null;
-            }
-            map.triggerRepaint();
-            sendErrorToCSharp(`3D_MODEL_LOADED: ${id} (normScale=${normalizedScale.toFixed(2)})`);
-        } catch (e) {
-            sendErrorToCSharp(`3D_MODEL_LOAD_FAILED: ${id} | ${e.message}`);
-            // 1. Clear any 3D model from scene
-            if (window.threeLayer && window.threeLayer.model) {
-                window.threeLayer.scene.remove(window.threeLayer.model);
-                window.threeLayer.model = null;
-            }
-            
-            // 2. Create / restore 2D SVG marker
-            createOrUpdateTransportMarker();
-            map.triggerRepaint();
-        }
-    } else {
-        createOrUpdateTransportMarker();
-    }
-    
     if (state.routeCoords && state.routeCoords.length >= 2) {
       placeTransportAtProgress(state.animProgress || 0);
+    } else if (state.waypoints && state.waypoints.length === 1) {
+      state.currentLon = state.waypoints[0].lon;
+      state.currentLat = state.waypoints[0].lat;
+      state.currentHeading = 0;
     }
+    map.triggerRepaint();
   },
 
   setTransportSize({ size }) {

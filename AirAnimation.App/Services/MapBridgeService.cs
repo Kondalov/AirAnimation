@@ -34,50 +34,66 @@ public sealed class MapBridgeService
         try
         {
             var raw = e.TryGetWebMessageAsString();
-            if (string.IsNullOrEmpty(raw)) return;
+            if (string.IsNullOrWhiteSpace(raw)) return;
 
             using var doc = JsonDocument.Parse(raw);
-            var type = doc.RootElement.GetProperty("type").GetString();
-
-            switch (type)
+            var root = doc.RootElement;
+            JsonDocument? innerDoc = null;
+            if (root.ValueKind == JsonValueKind.String)
             {
-                case "mapReady":
-                    MapReady?.Invoke(this, EventArgs.Empty);
-                    break;
+                innerDoc = JsonDocument.Parse(root.GetString()!);
+                root = innerDoc.RootElement;
+            }
 
-                case "mapClick":
-                    var lat = doc.RootElement.GetProperty("lat").GetDouble();
-                    var lon = doc.RootElement.GetProperty("lon").GetDouble();
-                    MapClicked?.Invoke(this, new MapClickArgs(lat, lon));
-                    break;
+            try
+            {
+                if (!root.TryGetProperty("type", out var typeProp)) return;
+                var type = typeProp.GetString();
 
-                case "waypointMoved":
-                    var id   = doc.RootElement.GetProperty("id").GetString()!;
-                    var mlat = doc.RootElement.GetProperty("lat").GetDouble();
-                    var mlon = doc.RootElement.GetProperty("lon").GetDouble();
-                    WaypointMoved?.Invoke(this, new WaypointMovedArgs(id, mlat, mlon));
-                    break;
+                switch (type)
+                {
+                    case "mapReady":
+                        MapReady?.Invoke(this, EventArgs.Empty);
+                        break;
 
-                case "animationProgress":
-                    var prog = doc.RootElement.GetProperty("progress").GetDouble();
-                    AnimationProgressChanged?.Invoke(this, prog);
-                    break;
+                    case "mapClick":
+                        var lat = root.GetProperty("lat").GetDouble();
+                        var lon = root.GetProperty("lon").GetDouble();
+                        MapClicked?.Invoke(this, new MapClickArgs(lat, lon));
+                        break;
 
-                case "insertWaypoint":
-                    var ilat = doc.RootElement.GetProperty("lat").GetDouble();
-                    var ilon = doc.RootElement.GetProperty("lon").GetDouble();
-                    var idx = doc.RootElement.GetProperty("index").GetInt32();
-                    WaypointInserted?.Invoke(this, new InsertWaypointArgs(ilat, ilon, idx));
-                    break;
-                    
-                case "lightningStrike":
-                    LightningStrike?.Invoke(this, EventArgs.Empty);
-                    break;
-                    
-                case "js_error":
-                    var msg = doc.RootElement.GetProperty("message").GetString();
-                    File.AppendAllText("JS_ERRORS.txt", $"[JS ERROR] {DateTime.Now}: {msg}\n");
-                    break;
+                    case "waypointMoved":
+                        var id   = root.GetProperty("id").GetString()!;
+                        var mlat = root.GetProperty("lat").GetDouble();
+                        var mlon = root.GetProperty("lon").GetDouble();
+                        WaypointMoved?.Invoke(this, new WaypointMovedArgs(id, mlat, mlon));
+                        break;
+
+                    case "animationProgress":
+                        var prog = root.GetProperty("progress").GetDouble();
+                        AnimationProgressChanged?.Invoke(this, prog);
+                        break;
+
+                    case "insertWaypoint":
+                        var ilat = root.GetProperty("lat").GetDouble();
+                        var ilon = root.GetProperty("lon").GetDouble();
+                        var idx = root.GetProperty("index").GetInt32();
+                        WaypointInserted?.Invoke(this, new InsertWaypointArgs(ilat, ilon, idx));
+                        break;
+                        
+                    case "lightningStrike":
+                        LightningStrike?.Invoke(this, EventArgs.Empty);
+                        break;
+                        
+                    case "js_error":
+                        var msg = root.GetProperty("message").GetString();
+                        File.AppendAllText("JS_ERRORS.txt", $"[JS ERROR] {DateTime.Now}: {msg}\n");
+                        break;
+                }
+            }
+            finally
+            {
+                innerDoc?.Dispose();
             }
         }
         catch (Exception ex)
