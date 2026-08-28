@@ -906,11 +906,41 @@ function buildProceduralVehicle(id) {
     return root;
 }
 
+function createDropShadowMesh(width = 1.0, length = 1.6) {
+    if (!window.THREE) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 10, 64, 64, 60);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.25)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+
+    const texture = new window.THREE.CanvasTexture(canvas);
+    const shadowMat = new window.THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.75,
+        depthWrite: false,
+        side: window.THREE.DoubleSide
+    });
+    const shadowGeom = new window.THREE.PlaneGeometry(width * 1.5, length * 1.25);
+    shadowGeom.rotateX(-Math.PI / 2);
+    const shadowMesh = new window.THREE.Mesh(shadowGeom, shadowMat);
+    shadowMesh.position.set(0, 0.005, 0);
+    return shadowMesh;
+}
+
 function processLoadedGLTF(gltf) {
     if (!gltf || !gltf.scene) return null;
     const modelScene = gltf.scene;
 
+    const animUpdaters = [];
     const toRemove = [];
+
     modelScene.traverse((child) => {
         if (child.isCamera || (child.name && child.name.toLowerCase().includes('camera'))) {
             toRemove.push(child);
@@ -926,13 +956,28 @@ function processLoadedGLTF(gltf) {
                 child.material.side = window.THREE.DoubleSide;
                 child.material.depthTest = true;
                 child.material.depthWrite = true;
+                
+                // Enhance specular reflection and avoid pure black
                 if (child.material.metalness !== undefined) {
-                    child.material.metalness = Math.min(child.material.metalness, 0.35);
+                    child.material.metalness = Math.min(child.material.metalness, 0.85);
                 }
                 if (child.material.roughness !== undefined) {
-                    child.material.roughness = Math.max(child.material.roughness, 0.25);
+                    child.material.roughness = Math.max(child.material.roughness, 0.15);
                 }
             }
+        }
+
+        // Detect animated parts (rotors, propellers, flames)
+        const name = (child.name || '').toLowerCase();
+        if (name.includes('rotormain') || name.includes('blade') || name.includes('prop')) {
+            animUpdaters.push((dt) => { child.rotation.y += dt * 35.0; });
+        } else if (name.includes('rotortail')) {
+            animUpdaters.push((dt) => { child.rotation.x += dt * 45.0; });
+        } else if (name.includes('flame') || name.includes('plume')) {
+            animUpdaters.push((dt, time) => {
+                const s = 1.0 + 0.25 * Math.sin(time * 25.0);
+                child.scale.set(s, s * 1.2, s);
+            });
         }
     });
     toRemove.forEach(c => {
@@ -958,9 +1003,49 @@ function processLoadedGLTF(gltf) {
     innerGroup.add(modelScene);
     innerGroup.scale.setScalar(normalizedScale);
 
+    // Contact drop shadow on the road/ground
+    const shadow = createDropShadowMesh(sizeVec.x * normalizedScale, sizeVec.z * normalizedScale);
+    if (shadow) innerGroup.add(shadow);
+
     const wrapperGroup = new window.THREE.Group();
     wrapperGroup.add(innerGroup);
+
+    wrapperGroup.userData = {
+        update(dt, time) {
+            animUpdaters.forEach(fn => fn(dt, time));
+        }
+    };
+
     return wrapperGroup;
+}
+
+function createStudioEnvironment(renderer) {
+    if (!window.THREE || !renderer) return null;
+    try {
+        const pmremGenerator = new window.THREE.PMREMGenerator(renderer);
+        pmremGenerator.compileEquirectangularShader();
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 128);
+        grad.addColorStop(0.0, '#ffffff'); // bright sky highlight
+        grad.addColorStop(0.3, '#c7d2fe'); // soft light blue sky
+        grad.addColorStop(0.5, '#94a3b8'); // horizon rim
+        grad.addColorStop(0.7, '#475569'); // ground bounce
+        grad.addColorStop(1.0, '#1e293b'); // dark ground
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 128);
+
+        const texture = new window.THREE.CanvasTexture(canvas);
+        texture.mapping = window.THREE.EquirectangularReflectionMapping;
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+        pmremGenerator.dispose();
+        return envMap;
+    } catch(e) {
+        return null;
+    }
 }
 
 // 3D Model Custom Layer
@@ -973,22 +1058,18 @@ const threeCustomLayer = {
         this.scene = new window.THREE.Scene();
 
         // Brilliant multi-directional lighting so models shine vibrantly on all map backgrounds
-        const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x888888, 4.0);
+        const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x94a3b8, 3.5);
         this.scene.add(hemiLight);
 
-        const dirLight1 = new window.THREE.DirectionalLight(0xffffff, 4.0);
-        dirLight1.position.set(50, 50, 100).normalize();
+        const dirLight1 = new window.THREE.DirectionalLight(0xffffff, 4.5);
+        dirLight1.position.set(50, 80, 100).normalize();
         this.scene.add(dirLight1);
 
-        const dirLight2 = new window.THREE.DirectionalLight(0xffffff, 3.0);
-        dirLight2.position.set(-50, -50, 100).normalize();
+        const dirLight2 = new window.THREE.DirectionalLight(0x93c5fd, 3.0);
+        dirLight2.position.set(-50, -50, 80).normalize();
         this.scene.add(dirLight2);
 
-        this.scene.add(new window.THREE.AmbientLight(0xffffff, 3.5));
-
-        if (this.model) {
-            this.scene.add(this.model);
-        }
+        this.scene.add(new window.THREE.AmbientLight(0xffffff, 2.5));
 
         if (this.renderer) {
             try { this.renderer.dispose(); } catch(e) {}
@@ -1000,6 +1081,14 @@ const threeCustomLayer = {
             antialias: true
         });
         this.renderer.autoClear = false;
+
+        // Apply realistic studio environment reflection
+        const env = createStudioEnvironment(this.renderer);
+        if (env) this.scene.environment = env;
+
+        if (this.model) {
+            this.scene.add(this.model);
+        }
         
         window.threeLayer = this;
     },
