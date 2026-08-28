@@ -1,0 +1,148 @@
+<Window x:Class="AirAnimation.App.Views.AddCustomModelDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Добавить 3D модель"
+        Width="500" Height="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgDeepBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource AppFont}">
+
+    <Border Padding="20" Background="{StaticResource BgBaseBrush}">
+        <StackPanel>
+            <!-- Header -->
+            <TextBlock Text="➕ Добавить свою 3D модель" FontSize="16" FontWeight="Bold"
+                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+            <TextBlock Text="Поддерживаются файлы .glb и .gltf, экспортированные из Blender или других 3D редакторов."
+                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16" TextWrapping="Wrap"/>
+
+            <!-- File Selection Card -->
+            <Border Margin="0,0,0,12" Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource BorderBrush_}" BorderThickness="1"
+                    CornerRadius="8" Padding="12,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="ФАЙЛ 3D МОДЕЛИ" FontSize="9" FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock x:Name="TxtSelectedFile" Text="Файл не выбран"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="TxtFileSize" Text="" FontSize="10"
+                                   Foreground="{StaticResource AccentBrush}" Margin="0,1,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="📁 Обзор..." Style="{StaticResource OutlineBtn}"
+                            Padding="12,6" Click="BrowseFile_Click" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Model Name Input with Smart Validation -->
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="Название модели *" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                <TextBox x:Name="TxtModelName"
+                         Tag="Например: Мой Boeing 777, Кастомная Tesla..."
+                         TextChanged="ModelName_TextChanged"/>
+                <!-- Real-time validation message -->
+                <StackPanel x:Name="ValidationPanel" Orientation="Horizontal" Margin="0,4,0,0" Visibility="Collapsed">
+                    <TextBlock x:Name="TxtValidationIcon" Text="⚠️" FontSize="11" Margin="0,0,4,0"/>
+                    <TextBlock x:Name="TxtValidationMessage" Text="" FontSize="10"
+                               TextWrapping="Wrap" MaxWidth="440"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- 3D Model Orientation & Axes Alignment -->
+            <Border Margin="0,0,0,12" Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource BorderBrush_}" BorderThickness="1"
+                    CornerRadius="8" Padding="10,8">
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="📐 Положение и ориентация 3D модели" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="TxtCurrentRotation" Text="X: 0° | Y: 0°" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <ComboBox x:Name="CmbOrientationPreset" SelectedIndex="0" SelectionChanged="OrientationPreset_SelectionChanged" Margin="0,0,0,6">
+                        <ComboBoxItem Content="🚗 Стандартное положение (Y-Up / glTF)"/>
+                        <ComboBoxItem Content="🔄 Развернуть на 180° (Перед / Зад)"/>
+                        <ComboBoxItem Content="🔄 Повернуть X +90° (Blender Z-Up)"/>
+                        <ComboBoxItem Content="🔄 Повернуть X -90° (Blender Z-Down)"/>
+                        <ComboBoxItem Content="🔄 Перевернуть вверх дном (X 180°)"/>
+                        <ComboBoxItem Content="🔄 Повернуть на 90° вправо (Y +90°)"/>
+                        <ComboBoxItem Content="🔄 Повернуть на 90° влево (Y -90°)"/>
+                    </ComboBox>
+                    
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="🔄 X +90°" Style="{StaticResource OutlineBtn}"
+                                Margin="0,0,3,0" Padding="2,4" FontSize="10" Click="RotateX_Click" ToolTip="Наклонить вперед/назад"/>
+                        <Button Grid.Column="1" Content="🔄 Y +90°" Style="{StaticResource OutlineBtn}"
+                                Margin="2,0,2,0" Padding="2,4" FontSize="10" Click="RotateY_Click" ToolTip="Повернуть влево/вправо"/>
+                        <Button Grid.Column="2" Content="🔄 180°" Style="{StaticResource OutlineBtn}"
+                                Margin="2,0,2,0" Padding="2,4" FontSize="10" Click="Rotate180_Click" ToolTip="Развернуть на 180°"/>
+                        <Button Grid.Column="3" Content="Сброс" Style="{StaticResource OutlineBtn}"
+                                Margin="3,0,0,0" Padding="2,4" FontSize="10" Click="ResetRotation_Click" ToolTip="Сбросить углы в 0°"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Vehicle Type -->
+            <StackPanel Margin="0,0,0,10">
+                <TextBlock Text="Тип транспорта" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                <ComboBox x:Name="CmbVehicleType" SelectedIndex="0" SelectionChanged="VehicleType_SelectionChanged">
+                    <ComboBoxItem Content="🚗 Автомобиль"/>
+                    <ComboBoxItem Content="✈️ Авиация (Самолёт / Джет)"/>
+                    <ComboBoxItem Content="🚁 Вертолёт / Дрон"/>
+                    <ComboBoxItem Content="🚢 Водный транспорт (Корабль / Яхта)"/>
+                    <ComboBoxItem Content="🚀 Космический аппарат / Ракета"/>
+                    <ComboBoxItem Content="🚆 Железнодорожный транспорт"/>
+                    <ComboBoxItem Content="🛸 Другое / Универсальный"/>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- Default Speed & Follow Roads Grid -->
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="Скорость (км/ч)" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <TextBox x:Name="TxtSpeed" Text="120" TextChanged="Speed_TextChanged"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                    <CheckBox x:Name="ChkFollowRoads" Content="Привязка к дорогам"
+                              IsChecked="True" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Action Buttons -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="1" Content="Отмена" Style="{StaticResource GhostBtn}"
+                        Padding="16,8" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click"/>
+                <Button x:Name="BtnSave" Grid.Column="2" Content="Добавить модель" Style="{StaticResource PrimaryBtn}"
+                        Padding="18,8" IsDefault="True" Click="Save_Click" IsEnabled="False"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

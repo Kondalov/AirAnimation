@@ -126,8 +126,8 @@ public sealed class MapBridgeService
     public Task ClearRouteAsync() =>
         ExecAsync("clearRoute", new { });
 
-    public Task SetTransportAsync(string id, string svgContent, double size = 64, double speedKmh = 300) =>
-        ExecAsync("setTransport", new { id, svg = svgContent, size, speedKmh });
+    public Task SetTransportAsync(string id, string svgContent, double size = 64, double speedKmh = 300, string? modelUrl = null, double rotX = 0, double rotY = 0, double rotZ = 0) =>
+        ExecAsync("setTransport", new { id, svg = svgContent, size, speedKmh, modelUrl, rotX, rotY, rotZ });
 
     public Task SetTransportSizeAsync(double size) =>
         ExecAsync("setTransportSize", new { size });

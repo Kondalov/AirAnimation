@@ -25,7 +25,20 @@ public sealed partial class MapViewModel : ObservableObject
 
     public async Task SetTransportAsync(TransportModel transport, double size = 84)
     {
-        await Bridge.SetTransportAsync(transport.Id, transport.SvgIcon, size, transport.DefaultSpeed);
+        string? modelUrl = null;
+        if (transport.IsCustom && !string.IsNullOrWhiteSpace(transport.CustomModelFileName))
+        {
+            modelUrl = $"https://custommodels.local/{transport.CustomModelFileName}";
+        }
+        await Bridge.SetTransportAsync(
+            transport.Id, 
+            transport.SvgIcon, 
+            size, 
+            transport.DefaultSpeed, 
+            modelUrl,
+            transport.RotationOffsetX,
+            transport.RotationOffsetY,
+            transport.RotationOffsetZ);
     }
 
     public Task SetTransportSizeAsync(double size) =>

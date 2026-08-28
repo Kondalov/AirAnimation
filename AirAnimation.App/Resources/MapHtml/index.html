@@ -1402,7 +1402,7 @@ function createDropShadowMesh(width = 1.0, length = 1.6) {
     return shadowMesh;
 }
 
-function processLoadedGLTF(gltf) {
+function processLoadedGLTF(gltf, rotX = 0, rotY = 0, rotZ = 0) {
     if (!gltf || !gltf.scene) return null;
     const modelScene = gltf.scene;
 
@@ -1453,26 +1453,39 @@ function processLoadedGLTF(gltf) {
     });
 
     modelScene.updateMatrixWorld(true);
-    const box = new window.THREE.Box3();
-    modelScene.traverse((child) => {
-        if (child.isMesh && child.visible) {
-            box.expandByObject(child);
-        }
-    });
 
+    // Standard glTF 2.0 convention (from Blender glTF export):
+    // +Y is Up, +X is Right, -Z is Forward.
+    // Rotate 180 degrees around Y so the model faces +Z (Forward along route heading).
+    modelScene.rotation.set(0, Math.PI, 0);
+
+    // Apply custom user rotation offsets (degrees to radians)
+    if (rotX) modelScene.rotation.x += (rotX * Math.PI / 180);
+    if (rotY) modelScene.rotation.y += (rotY * Math.PI / 180);
+    if (rotZ) modelScene.rotation.z += (rotZ * Math.PI / 180);
+
+    modelScene.updateMatrixWorld(true);
+
+    // Compute precise bounding box after orientation alignment
+    const box = new window.THREE.Box3().setFromObject(modelScene);
     const center = box.getCenter(new window.THREE.Vector3());
     const sizeVec = box.getSize(new window.THREE.Vector3());
     const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1.0;
     const normalizedScale = 1.0 / maxDim;
 
-    modelScene.position.set(-center.x, -box.min.y, -center.z);
+    // Center horizontally at (X=0, Z=0) and place bottom of tires/chassis at Y=0
+    modelScene.position.x -= center.x;
+    modelScene.position.y -= box.min.y;
+    modelScene.position.z -= center.z;
 
     const innerGroup = new window.THREE.Group();
     innerGroup.add(modelScene);
     innerGroup.scale.setScalar(normalizedScale);
 
     // Contact drop shadow on the road/ground
-    const shadow = createDropShadowMesh(sizeVec.x * normalizedScale, sizeVec.z * normalizedScale);
+    const shadowW = Math.max(sizeVec.x, sizeVec.z) * normalizedScale;
+    const shadowL = Math.max(sizeVec.x, sizeVec.z) * normalizedScale;
+    const shadow = createDropShadowMesh(shadowW, shadowL);
     if (shadow) innerGroup.add(shadow);
 
     const wrapperGroup = new window.THREE.Group();
@@ -1703,12 +1716,20 @@ const threeCustomLayer = {
     }
 };
 
-function update3DVehicle(id) {
+function update3DVehicle(id, customUrl, rotX, rotY, rotZ) {
     if (!id) id = state.transportId || 'tesla_s_plaid';
     state.transportId = id;
+    if (customUrl !== undefined) state.customModelUrl = customUrl;
+    if (rotX !== undefined) state.customModelRotX = rotX;
+    if (rotY !== undefined) state.customModelRotY = rotY;
+    if (rotZ !== undefined) state.customModelRotZ = rotZ;
+
+    const rX = rotX !== undefined ? rotX : (state.customModelRotX || 0);
+    const rY = rotY !== undefined ? rotY : (state.customModelRotY || 0);
+    const rZ = rotZ !== undefined ? rotZ : (state.customModelRotZ || 0);
 
     if (!window.THREE) {
-        window.addEventListener('three-ready', () => update3DVehicle(id), { once: true });
+        window.addEventListener('three-ready', () => update3DVehicle(id, customUrl, rX, rY, rZ), { once: true });
         createOrUpdateTransportMarker();
         return;
     }
@@ -1730,7 +1751,17 @@ function update3DVehicle(id) {
         window.threeLayer.model = null;
     }
 
-    // 2. Immediately instantiate the stylized 3D model (instant procedural model)
+    // 2. Determine target model URL
+    let targetModelUrl = customUrl || state.customModelUrl;
+    if (!targetModelUrl) {
+        if (id && id.startsWith('custom_')) {
+            targetModelUrl = `https://custommodels.local/${id}.glb`;
+        } else {
+            targetModelUrl = `/Models/${id}.glb`;
+        }
+    }
+
+    // 3. Immediately instantiate the stylized 3D model (instant procedural model)
     const procedural = buildProceduralVehicle(id);
     if (procedural) {
         window.threeLayer.model = procedural;
@@ -1743,20 +1774,19 @@ function update3DVehicle(id) {
         createOrUpdateTransportMarker();
     }
 
-    // 3. Ensure custom layer is on map
+    // 4. Ensure custom layer is on map
     if (map && !map.getLayer('3d-model-layer')) {
         map.addLayer(threeCustomLayer);
     }
 
-    // 4. If external GLTF loader is present, attempt background load of custom asset
-    if (window.GLTFLoader) {
-        const modelUrl = `/Models/${id}.glb`;
+    // 5. If external GLTF loader is present, attempt load of custom or built-in asset
+    if (window.GLTFLoader && targetModelUrl) {
         const loader = new window.GLTFLoader();
         loader.load(
-            modelUrl,
+            targetModelUrl,
             (gltf) => {
                 if (state.transportId !== id) return;
-                const gltfModel = processLoadedGLTF(gltf);
+                const gltfModel = processLoadedGLTF(gltf, rX, rY, rZ);
                 if (gltfModel && window.threeLayer && window.threeLayer.scene) {
                     if (window.threeLayer.model) {
                         try { window.threeLayer.scene.remove(window.threeLayer.model); } catch(e) {}
@@ -1772,7 +1802,7 @@ function update3DVehicle(id) {
             },
             undefined,
             (err) => {
-                // Procedural 3D model is already happily running!
+                // Procedural 3D model is running as fallback
             }
         );
     }
@@ -2200,7 +2230,7 @@ window.bridge = {
       }
 
       if (state.transportId) {
-        update3DVehicle(state.transportId);
+        update3DVehicle(state.transportId, state.customModelUrl);
       }
 
       if (state.routeCoords.length >= 2) {
@@ -2242,13 +2272,17 @@ window.bridge = {
     map.triggerRepaint();
   },
 
-  async setTransport({ id, svg, size, speedKmh }) {
+  async setTransport({ id, svg, size, speedKmh, modelUrl, rotX, rotY, rotZ }) {
     state.transportId = id;
     state.transportSvg = svg;
+    state.customModelUrl = modelUrl;
+    state.customModelRotX = rotX || 0;
+    state.customModelRotY = rotY || 0;
+    state.customModelRotZ = rotZ || 0;
     if (size) state.transportSize = size;
     if (speedKmh) state.transportSpeed = speedKmh;
 
-    update3DVehicle(id);
+    update3DVehicle(id, modelUrl, rotX, rotY, rotZ);
 
     if (state.routeCoords && state.routeCoords.length >= 2) {
       placeTransportAtProgress(state.animProgress || 0);
@@ -2326,7 +2360,7 @@ window.bridge = {
         state.currentHeading = 0;
       }
       if (state.transportId) {
-        update3DVehicle(state.transportId);
+        update3DVehicle(state.transportId, state.customModelUrl);
       }
       map.triggerRepaint();
     };

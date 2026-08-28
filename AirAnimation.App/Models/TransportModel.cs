@@ -11,6 +11,11 @@ public sealed class TransportModel
     public bool FollowRoads { get; init; } = true;
     public double RotationOffset { get; init; } = 0; // degrees adjustment for icon facing
     public string Description { get; init; } = string.Empty;
+    public bool IsCustom { get; init; } = false;
+    public string? CustomModelFileName { get; init; }
+    public double RotationOffsetX { get; set; } = 0;
+    public double RotationOffsetY { get; set; } = 0;
+    public double RotationOffsetZ { get; set; } = 0;
 
     public static IReadOnlyList<TransportModel> All => _all;
 
