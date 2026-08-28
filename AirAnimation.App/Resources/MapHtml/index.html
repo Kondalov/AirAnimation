@@ -1104,6 +1104,18 @@ const threeCustomLayer = {
         // Require at least 2 route coordinates or 1 waypoint
         if ((!state.routeCoords || state.routeCoords.length < 2) && (!state.waypoints || state.waypoints.length === 0)) return;
 
+        if (state.currentLon === undefined || state.currentLat === undefined || isNaN(state.currentLon) || isNaN(state.currentLat)) {
+            if (state.routeCoords && state.routeCoords.length >= 2) {
+                state.currentLon = state.routeCoords[0][0];
+                state.currentLat = state.routeCoords[0][1];
+            } else if (state.waypoints && state.waypoints.length > 0) {
+                state.currentLon = state.waypoints[0].lon;
+                state.currentLat = state.waypoints[0].lat;
+            } else {
+                return;
+            }
+        }
+
         try {
             const rawMatrix = extractMapMatrix(matrixOrArgs);
             if (!rawMatrix) return;
@@ -1139,6 +1151,7 @@ const threeCustomLayer = {
             gl.depthMask(true);
             gl.colorMask(true, true, true, true);
 
+            const earthRadius = 6371008.8;
             const isFlying = (state.flightAltitude && (state.orientationMode === 'flight' || 
                 (state.transportId && (state.transportId.includes('air') || state.transportId.includes('plane') || 
                  state.transportId.includes('jet') || state.transportId.includes('heli') || 
@@ -1146,27 +1159,62 @@ const threeCustomLayer = {
                  state.transportId.includes('ufo')))));
             const altitude = isFlying ? (state.flightAltitude || 1000) : 0;
 
-            const mc = maplibregl.MercatorCoordinate.fromLngLat(
-                [state.currentLon, state.currentLat],
-                altitude
-            );
-
             const mercatorPerPixel = 1.0 / (512 * Math.pow(2, map.getZoom()));
             const s = (state.transportSize || 84) * mercatorPerPixel;
-            const headingAngle = state.effectiveAngle !== undefined ? state.effectiveAngle : state.currentHeading;
-            const yawAngle = (180 - headingAngle) * Math.PI / 180;
-            const rotationYaw = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 1, 0), yawAngle);
-            const roll = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(0, 0, 1), (state.currentBankRoll || 0) * Math.PI / 180);
-            const rotationX = new window.THREE.Matrix4().makeRotationAxis(new window.THREE.Vector3(1, 0, 0), Math.PI / 2);
+            const headingAngle = state.effectiveAngle !== undefined ? state.effectiveAngle : (state.currentHeading || 0);
+
+            const rad = headingAngle * Math.PI / 180;
+            const sinH = Math.sin(rad);
+            const cosH = Math.cos(rad);
+            const rollRad = (state.currentBankRoll || 0) * Math.PI / 180;
+            const sinR = Math.sin(rollRad);
+            const cosR = Math.cos(rollRad);
 
             const m = new window.THREE.Matrix4().fromArray(rawMatrix);
-            
-            const l = new window.THREE.Matrix4()
-                .makeTranslation(mc.x, mc.y, mc.z)
-                .scale(new window.THREE.Vector3(s, -s, s))
-                .multiply(rotationX)
-                .multiply(rotationYaw)
-                .multiply(roll);
+
+            const proj = map.getProjection ? map.getProjection() : null;
+            const isGlobe = (proj && (proj.type === 'globe' || proj.name === 'globe')) || 
+                            (matrixOrArgs && matrixOrArgs.defaultProjectionData && matrixOrArgs.defaultProjectionData.projectionTransition > 0);
+
+            let l;
+            if (isGlobe) {
+                const lng = state.currentLon;
+                const lat = state.currentLat;
+                const globeScale = s * 2 * Math.PI;
+
+                // Local tangent orientation on Globe:
+                // Tangent East = +X, Tangent North = +Y, Up (Surface Normal) = +Z
+                // Model basis: Model Right = +X, Model Up = +Y, Model Nose/Front = +Z
+                const localMat = new window.THREE.Matrix4().set(
+                    cosH * cosR * globeScale,  -cosH * sinR * globeScale,  sinH * globeScale, 0,
+                   -sinH * cosR * globeScale,   sinH * sinR * globeScale,  cosH * globeScale, 0,
+                    sinR * globeScale,          cosR * globeScale,         0,                 0,
+                    0,                          0,                         0,                 1
+                );
+
+                l = new window.THREE.Matrix4()
+                    .makeRotationY((lng / 180) * Math.PI)
+                    .multiply(new window.THREE.Matrix4().makeRotationX((-lat / 180) * Math.PI))
+                    .multiply(new window.THREE.Matrix4().makeTranslation(0, 0, 1 + altitude / earthRadius))
+                    .multiply(localMat);
+            } else {
+                const mc = maplibregl.MercatorCoordinate.fromLngLat(
+                    [state.currentLon, state.currentLat],
+                    altitude
+                );
+
+                // Mercator basis: East = +X, South = +Y, Up = +Z (North is -Y)
+                const localMat = new window.THREE.Matrix4().set(
+                    cosH * cosR * s,  -cosH * sinR * s,   sinH * s, 0,
+                    sinH * cosR * s,  -sinH * sinR * s,  -cosH * s, 0,
+                    sinR * s,          cosR * s,          0,        0,
+                    0,                 0,                 0,        1
+                );
+
+                l = new window.THREE.Matrix4()
+                    .makeTranslation(mc.x, mc.y, mc.z)
+                    .multiply(localMat);
+            }
 
             this.camera.projectionMatrix = m.multiply(l);
             this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
@@ -1282,7 +1330,7 @@ map.on('load', async () => {
   // Automatically restore custom 3D layer and route layers whenever map style changes
   map.on('styledata', () => {
     if (map.isStyleLoaded()) {
-      if (!map.getSource('route') || !map.getLayer('route-line')) {
+      if (!map.getSource('route') || !map.getLayer('route-line') || (window.THREE && !map.getLayer('3d-model-layer'))) {
         rebuildLayers();
       }
     }
@@ -1785,6 +1833,13 @@ window.bridge = {
       rebuildLayers();
       if (state.routeCoords && state.routeCoords.length >= 2) {
         placeTransportAtProgress(state.animProgress || 0);
+      } else if (state.waypoints && state.waypoints.length > 0) {
+        state.currentLon = state.waypoints[0].lon;
+        state.currentLat = state.waypoints[0].lat;
+        state.currentHeading = 0;
+      }
+      if (state.transportId) {
+        update3DVehicle(state.transportId);
       }
       map.triggerRepaint();
     };
