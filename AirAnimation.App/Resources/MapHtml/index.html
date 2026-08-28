@@ -198,11 +198,14 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  MAP CONFIGURATION
+//  MAP CONFIGURATION & PROFESSIONAL VECTOR STYLES
 // ═══════════════════════════════════════════════════════════════
-const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+const BRIGHT_STYLE = 'https://tiles.openfreemap.org/styles/bright';
+const LIBERTY_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
+// ── SATELLITE STYLE (Strictly Preserved ESRI World Imagery) ──
 const SATELLITE_STYLE = {
   version: 8,
   sprite: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/sprite',
@@ -222,6 +225,7 @@ const SATELLITE_STYLE = {
   ]
 };
 
+// ── CARTOON / TRAVELBOAST STYLE (Vibrant Travel Aesthetics) ──
 const CARTOON_STYLE = {
   version: 8,
   sprite: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/sprite',
@@ -236,31 +240,34 @@ const CARTOON_STYLE = {
     }
   },
   layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#aadaff' } },
+    { id: 'bg', type: 'background', paint: { 'background-color': '#38bdf8' } },
     { id: 'tiles', type: 'raster', source: 'osm', 
       paint: { 
-        'raster-opacity': 1, 
-        'raster-saturation': 0.8,
-        'raster-contrast': 0.4,
-        'raster-brightness-min': 0.1
+        'raster-opacity': 0.95, 
+        'raster-saturation': 0.85,
+        'raster-contrast': 0.35,
+        'raster-brightness-min': 0.05
       } 
     }
   ]
 };
 
 const STYLES = {
-  dark: DARK_STYLE,
-  streets: LIGHT_STYLE,
-  light: LIGHT_STYLE,
   satellite: SATELLITE_STYLE,
-  outdoors: DARK_STYLE,
-  cartoon: CARTOON_STYLE,
-  liberty: 'https://maputnik.github.io/osm-liberty/style.json'
+  liberty: LIBERTY_STYLE,
+  bright: BRIGHT_STYLE,
+  streets: BRIGHT_STYLE,
+  dark: DARK_STYLE,
+  light: LIGHT_STYLE,
+  positron: LIGHT_STYLE,
+  outdoors: LIBERTY_STYLE,
+  cartoon: CARTOON_STYLE
 };
 
+// MapLibre instance initialized with Satellite by default
 const map = new maplibregl.Map({
   container: 'map',
-  style: DARK_STYLE,
+  style: SATELLITE_STYLE,
   center: [37.62, 55.75],
   zoom: 5,
   pitch: 45,
@@ -2244,8 +2251,8 @@ window.bridge = {
 
   async setMapStyle({ styleUrl }) {
     if (!map) return;
-    const key = styleUrl || 'dark';
-    const style = STYLES[key] || DARK_STYLE;
+    const key = styleUrl || 'satellite';
+    const style = STYLES[key] || STYLES.satellite;
     
     const onStyleReady = () => {
       try { map.setProjection({ type: 'globe' }); } catch(e) {}
@@ -2271,7 +2278,7 @@ window.bridge = {
     
     if (key === 'satellite') {
       try {
-        const res = await fetch(DARK_STYLE);
+        const res = await fetch('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json');
         const styleJson = await res.json();
         
         // Remove background and water to make it transparent for the satellite layer
@@ -2299,11 +2306,13 @@ window.bridge = {
         return;
       } catch (e) {
         console.warn('Failed to build hybrid satellite, using fallback', e);
+        applyStyle(SATELLITE_STYLE);
+        return;
       }
     }
 
     // Check if it's a vector style URL we can patch for Russian language
-    if (typeof style === 'string' && style.endsWith('.json')) {
+    if (typeof style === 'string') {
       try {
         const res = await fetch(style);
         const styleJson = await res.json();
@@ -2313,8 +2322,8 @@ window.bridge = {
           styleJson.layers.forEach(layer => {
             if (layer.layout && layer.layout['text-field']) {
               const str = JSON.stringify(layer.layout['text-field']);
-              if (str.includes('name_en') || str.includes('{name}')) {
-                 layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
+              if (str.includes('name_en') || str.includes('{name}') || str.includes('name:latin') || str.includes('name_int')) {
+                 layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name'], ['get', 'name_en']];
               }
             }
           });

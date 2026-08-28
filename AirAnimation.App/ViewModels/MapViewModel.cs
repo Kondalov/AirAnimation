@@ -12,7 +12,7 @@ public sealed partial class MapViewModel : ObservableObject
     private readonly MapBridgeService _bridge = new();
 
     [ObservableProperty] private bool isMapReady;
-    [ObservableProperty] private string currentStyleKey = "dark";
+    [ObservableProperty] private string currentStyleKey = "satellite";
 
     public MapBridgeService Bridge => _bridge;
 

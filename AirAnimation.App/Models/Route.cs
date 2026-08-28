@@ -44,8 +44,8 @@ public sealed class AnimationSettings
 
 public sealed class MapSettings
 {
-    public MapStyle Style { get; set; } = MapStyle.Streets;
-    public bool Enable3D { get; set; } = false;
+    public MapStyle Style { get; set; } = MapStyle.Satellite;
+    public bool Enable3D { get; set; } = true;
     public double InitialZoom { get; set; } = 5;
     public double InitialLat { get; set; } = 55.75;
     public double InitialLon { get; set; } = 37.62;

@@ -55,15 +55,19 @@
                     <TextBlock Text="Стиль карты" FontSize="10"
                                Foreground="{StaticResource TextMutedBrush}"
                                Margin="0,0,0,6"/>
-                    <UniformGrid Columns="2" Width="130">
-                        <RadioButton Content="🌑 Dark" Tag="dark" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
-                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=dark}" Click="StyleBtn_Click"/>
-                        <RadioButton Content="☀ Light" Tag="streets" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
-                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=streets}" Click="StyleBtn_Click"/>
+                    <UniformGrid Columns="2" Width="180">
                         <RadioButton Content="🛰 Спутник" Tag="satellite" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
                                      IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=satellite}" Click="StyleBtn_Click"/>
-                        <RadioButton Content="🏔 Рельеф" Tag="outdoors" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
-                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=outdoors}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🗺 Liberty 3D" Tag="liberty" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=liberty}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🎨 Яркая" Tag="bright" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=bright}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🌑 Тёмная 3D" Tag="dark" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=dark}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="🏝 Мультяшная" Tag="cartoon" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=cartoon}" Click="StyleBtn_Click"/>
+                        <RadioButton Content="☀ Светлая" Tag="light" Style="{StaticResource MapStyleRadio}" GroupName="MiniMapStyle"
+                                     IsChecked="{Binding CurrentStyleKey, Converter={StaticResource EqualityConverter}, ConverterParameter=light}" Click="StyleBtn_Click"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>

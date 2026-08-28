@@ -222,16 +222,18 @@
                 <StackPanel>
                     <TextBlock Text="🗺 Стиль карты" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8"/>
                     <WrapPanel>
-                        <RadioButton Content="Темная 3D" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle" 
-                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=dark}" />
-                        <RadioButton Content="Светлая" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
-                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=light}" />
-                        <RadioButton Content="Спутник" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                        <RadioButton Content="🛰 Спутник" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle" 
                                      IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=satellite}" />
-                        <RadioButton Content="Мультяшная" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
-                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=cartoon}" />
-                        <RadioButton Content="OSM Liberty" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                        <RadioButton Content="🗺 Liberty 3D" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
                                      IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=liberty}" />
+                        <RadioButton Content="🎨 Яркая" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=bright}" />
+                        <RadioButton Content="🌑 Тёмная 3D" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=dark}" />
+                        <RadioButton Content="🏝 Мультяшная" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=cartoon}" />
+                        <RadioButton Content="☀ Светлая" Style="{StaticResource SelectableBtnStyle}" GroupName="MapStyle"
+                                     IsChecked="{Binding MapStyle, Converter={StaticResource EqualityConverter}, ConverterParameter=light}" />
                     </WrapPanel>
                 </StackPanel>
             </Border>

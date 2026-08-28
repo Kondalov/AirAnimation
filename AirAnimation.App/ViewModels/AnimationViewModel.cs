@@ -30,8 +30,8 @@ public sealed partial class AnimationViewModel : ObservableObject
     // Trail Style: 'redDashed', 'whiteDashed', 'neon', 'solid'
     [ObservableProperty] private string trailStyle = "redDashed";
 
-    // Map Style: 'dark', 'light', 'satellite', 'cartoon'
-    [ObservableProperty] private string mapStyle = "dark";
+    // Map Style: 'satellite', 'liberty', 'bright', 'dark', 'cartoon', 'light'
+    [ObservableProperty] private string mapStyle = "satellite";
 
     [ObservableProperty] private bool showTrail = true;
     [ObservableProperty] private bool showCityLabels = true;
