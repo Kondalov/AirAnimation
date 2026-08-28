@@ -154,8 +154,9 @@ public sealed partial class RouteViewModel : ObservableObject
         foreach (var w in Waypoints.ToList())
             WaypointRemoved?.Invoke(this, w.Id);
         Waypoints.Clear();
-        Segments.Clear();
+        Segments = [];
         TotalDistanceKm = 0;
+        RouteUpdated?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

@@ -55,10 +55,16 @@ public sealed partial class MainViewModel : ObservableObject
     private async void OnRouteUpdated(object? sender, EventArgs e)
     {
         var allCoords = RouteViewModel.GetAllRouteCoordinates();
-        if (allCoords.Count > 0)
+        if (allCoords.Count >= 2)
         {
             await MapViewModel.SetRouteAsync(allCoords, "#4F6BFF", 4);
             AnimationViewModel.TotalDistanceKm = RouteViewModel.TotalDistanceKm;
+        }
+        else
+        {
+            await MapViewModel.ClearRouteAsync();
+            AnimationViewModel.TotalDistanceKm = 0;
+            AnimationViewModel.Progress = 0;
         }
     }
 

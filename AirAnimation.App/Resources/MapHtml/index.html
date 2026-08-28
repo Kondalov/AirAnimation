@@ -281,6 +281,46 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
+// ── Hybrid Satellite Builder (ESRI Satellite Imagery + Carto Vector Labels & Borders) ──
+async function getHybridSatelliteJson() {
+  try {
+    const res = await fetch('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json');
+    const styleJson = await res.json();
+    
+    // Remove solid background and water so satellite raster shows through
+    styleJson.layers = styleJson.layers.filter(l => l.id !== 'background' && l.id !== 'water');
+    
+    // Add ESRI Satellite as base layer
+    styleJson.sources['sat'] = SATELLITE_STYLE.sources.sat;
+    styleJson.layers.unshift({
+      id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 }
+    });
+    
+    // Patch text-field to prioritize Russian language
+    if (styleJson.layers) {
+      styleJson.layers.forEach(layer => {
+        if (layer.layout && layer.layout['text-field']) {
+          const str = JSON.stringify(layer.layout['text-field']);
+          if (str.includes('name_en') || str.includes('{name}') || str.includes('name:latin') || str.includes('name_int')) {
+             layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name'], ['get', 'name_en']];
+          }
+        }
+      });
+    }
+    return styleJson;
+  } catch(e) {
+    console.warn('Failed to build hybrid satellite JSON:', e);
+    return SATELLITE_STYLE;
+  }
+}
+
+// Immediately load Hybrid Satellite with city labels on startup
+getHybridSatelliteJson().then(hybridStyle => {
+  if (hybridStyle && hybridStyle !== SATELLITE_STYLE) {
+    map.setStyle(hybridStyle);
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════// ═══════════════════════════════════════════════════════════════
 //  ERROR INTERCEPTOR FOR DEBUGGING
 // ═══════════════════════════════════════════════════════════════
@@ -1528,7 +1568,12 @@ const threeCustomLayer = {
     render(gl, matrixOrArgs) {
         if (!this.model) return;
         // Require at least 2 route coordinates or 1 waypoint
-        if ((!state.routeCoords || state.routeCoords.length < 2) && (!state.waypoints || state.waypoints.length === 0)) return;
+        if ((!state.routeCoords || state.routeCoords.length < 2) && (!state.waypoints || state.waypoints.length === 0)) {
+            if (this.model.visible) {
+                this.model.visible = false;
+            }
+            return;
+        }
 
         if (state.currentLon === undefined || state.currentLat === undefined || isNaN(state.currentLon) || isNaN(state.currentLat)) {
             if (state.routeCoords && state.routeCoords.length >= 2) {
@@ -2099,6 +2144,9 @@ window.bridge = {
     state.waypoints[idx].marker.remove();
     state.waypoints.splice(idx, 1);
     updateWaypointBadges();
+    if (state.waypoints.length < 2) {
+      this.clearRoute();
+    }
   },
 
   reorderWaypoints({ ids }) {
@@ -2119,19 +2167,16 @@ window.bridge = {
   clearWaypoints() {
     state.waypoints.forEach(w => w.marker.remove());
     state.waypoints = [];
-    state.routeCoords = [];
-    state.totalDist = 0;
-    map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-    map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-    if (state.transportMarker) {
-      state.transportMarker.remove();
-      state.transportMarker = null;
-    }
-    map.triggerRepaint();
+    this.clearRoute();
   },
 
   setRoute({ coordinates, color, width }) {
     try {
+      if (!coordinates || coordinates.length < 2) {
+        this.clearRoute();
+        return;
+      }
+
       state.routeCoords = coordinates || [];
       state.totalDist = calcTotalDist(state.routeCoords);
 
@@ -2172,12 +2217,28 @@ window.bridge = {
   clearRoute() {
     state.routeCoords = [];
     state.totalDist = 0;
+    state.animProgress = 0;
+    state.currentLon = undefined;
+    state.currentLat = undefined;
     map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
     map.getSource('trail')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
     if (state.transportMarker) {
       state.transportMarker.remove();
       state.transportMarker = null;
     }
+    if (window.threeLayer && window.threeLayer.model) {
+      window.threeLayer.model.visible = false;
+      if (window.threeLayer.scene) {
+        window.threeLayer.scene.remove(window.threeLayer.model);
+      }
+      window.threeLayer.model = null;
+    }
+    updateHud(0);
+    const distEl = document.getElementById('hud-dist');
+    if (distEl) distEl.textContent = '0 км';
+    const timeEl = document.getElementById('hud-time');
+    if (timeEl) timeEl.textContent = '00:00';
+    postMessage({ type: 'distanceUpdate', distance: 0 });
     map.triggerRepaint();
   },
 
@@ -2277,38 +2338,9 @@ window.bridge = {
     };
     
     if (key === 'satellite') {
-      try {
-        const res = await fetch('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json');
-        const styleJson = await res.json();
-        
-        // Remove background and water to make it transparent for the satellite layer
-        styleJson.layers = styleJson.layers.filter(l => l.id !== 'background' && l.id !== 'water');
-        
-        // Add ESRI Satellite as base
-        styleJson.sources['sat'] = SATELLITE_STYLE.sources.sat;
-        styleJson.layers.unshift({
-          id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-opacity': 1 }
-        });
-        
-        // Patch text-field to prioritize Russian language
-        if (styleJson.layers) {
-          styleJson.layers.forEach(layer => {
-            if (layer.layout && layer.layout['text-field']) {
-              const str = JSON.stringify(layer.layout['text-field']);
-              if (str.includes('name_en') || str.includes('{name}')) {
-                 layer.layout['text-field'] = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
-              }
-            }
-          });
-        }
-        
-        applyStyle(styleJson);
-        return;
-      } catch (e) {
-        console.warn('Failed to build hybrid satellite, using fallback', e);
-        applyStyle(SATELLITE_STYLE);
-        return;
-      }
+      const hybridJson = await getHybridSatelliteJson();
+      applyStyle(hybridJson);
+      return;
     }
 
     // Check if it's a vector style URL we can patch for Russian language

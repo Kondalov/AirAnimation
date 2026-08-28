@@ -34,6 +34,12 @@ public sealed partial class MapViewModel : ObservableObject
     public Task SetRouteAsync(IReadOnlyList<double[]> coords, string color, double width) =>
         _bridge.SetRouteAsync(coords, color, width);
 
+    public Task ClearRouteAsync() =>
+        _bridge.ClearRouteAsync();
+
+    public Task ClearWaypointsAsync() =>
+        _bridge.ClearWaypointsAsync();
+
     public Task ClearAllAsync() => Task.WhenAll(
         _bridge.ClearWaypointsAsync(),
         _bridge.ClearRouteAsync());
