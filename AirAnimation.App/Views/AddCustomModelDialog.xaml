@@ -64,7 +64,7 @@
                     <Grid Margin="0,0,0,6">
                         <TextBlock Text="📐 Положение и ориентация 3D модели" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBlock x:Name="TxtCurrentRotation" Text="X: 0° | Y: 0°" FontSize="10" FontWeight="Bold"
+                        <TextBlock x:Name="TxtCurrentRotation" Text="X: 0° | Y: 0° | Z: 0°" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
                     </Grid>
                     <ComboBox x:Name="CmbOrientationPreset" SelectedIndex="0" SelectionChanged="OrientationPreset_SelectionChanged" Margin="0,0,0,6">
@@ -75,6 +75,9 @@
                         <ComboBoxItem Content="🔄 Перевернуть вверх дном (X 180°)"/>
                         <ComboBoxItem Content="🔄 Повернуть на 90° вправо (Y +90°)"/>
                         <ComboBoxItem Content="🔄 Повернуть на 90° влево (Y -90°)"/>
+                        <ComboBoxItem Content="🔄 Повернуть Z +90° (Крен вправо)"/>
+                        <ComboBoxItem Content="🔄 Повернуть Z -90° (Крен влево)"/>
+                        <ComboBoxItem Content="🔄 Повернуть Z 180° (Крен 180°)"/>
                     </ComboBox>
                     
                     <Grid>
@@ -83,15 +86,18 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="🔄 X +90°" Style="{StaticResource OutlineBtn}"
-                                Margin="0,0,3,0" Padding="2,4" FontSize="10" Click="RotateX_Click" ToolTip="Наклонить вперед/назад"/>
+                                Margin="0,0,2,0" Padding="2,4" FontSize="10" Click="RotateX_Click" ToolTip="Наклонить вперед/назад"/>
                         <Button Grid.Column="1" Content="🔄 Y +90°" Style="{StaticResource OutlineBtn}"
                                 Margin="2,0,2,0" Padding="2,4" FontSize="10" Click="RotateY_Click" ToolTip="Повернуть влево/вправо"/>
-                        <Button Grid.Column="2" Content="🔄 180°" Style="{StaticResource OutlineBtn}"
+                        <Button Grid.Column="2" Content="🔄 Z +90°" Style="{StaticResource OutlineBtn}"
+                                Margin="2,0,2,0" Padding="2,4" FontSize="10" Click="RotateZ_Click" ToolTip="Повернуть крен / с бока"/>
+                        <Button Grid.Column="3" Content="🔄 180°" Style="{StaticResource OutlineBtn}"
                                 Margin="2,0,2,0" Padding="2,4" FontSize="10" Click="Rotate180_Click" ToolTip="Развернуть на 180°"/>
-                        <Button Grid.Column="3" Content="Сброс" Style="{StaticResource OutlineBtn}"
-                                Margin="3,0,0,0" Padding="2,4" FontSize="10" Click="ResetRotation_Click" ToolTip="Сбросить углы в 0°"/>
+                        <Button Grid.Column="4" Content="Сброс" Style="{StaticResource OutlineBtn}"
+                                Margin="2,0,0,0" Padding="2,4" FontSize="10" Click="ResetRotation_Click" ToolTip="Сбросить углы в 0°"/>
                     </Grid>
                 </StackPanel>
             </Border>

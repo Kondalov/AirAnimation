@@ -92,6 +92,15 @@ public partial class AddCustomModelDialog : Window
             case 6: // -90 Y
                 _rotX = 0; _rotY = -90; _rotZ = 0;
                 break;
+            case 7: // +90 Z
+                _rotX = 0; _rotY = 0; _rotZ = 90;
+                break;
+            case 8: // -90 Z
+                _rotX = 0; _rotY = 0; _rotZ = -90;
+                break;
+            case 9: // 180 Z
+                _rotX = 0; _rotY = 0; _rotZ = 180;
+                break;
         }
 
         UpdateRotationDisplay();
@@ -106,6 +115,12 @@ public partial class AddCustomModelDialog : Window
     private void RotateY_Click(object sender, RoutedEventArgs e)
     {
         _rotY = (_rotY + 90) % 360;
+        UpdateRotationDisplay();
+    }
+
+    private void RotateZ_Click(object sender, RoutedEventArgs e)
+    {
+        _rotZ = (_rotZ + 90) % 360;
         UpdateRotationDisplay();
     }
 
@@ -127,7 +142,7 @@ public partial class AddCustomModelDialog : Window
     private void UpdateRotationDisplay()
     {
         if (TxtCurrentRotation is null) return;
-        TxtCurrentRotation.Text = $"X: {_rotX:F0}° | Y: {_rotY:F0}°";
+        TxtCurrentRotation.Text = $"X: {_rotX:F0}° | Y: {_rotY:F0}° | Z: {_rotZ:F0}°";
     }
 
     private void VehicleType_SelectionChanged(object sender, SelectionChangedEventArgs e)

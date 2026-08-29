@@ -81,8 +81,8 @@ public sealed partial class TransportViewModel : ObservableObject
 
     public bool IsCustomSelected => SelectedTransport?.IsCustom == true;
     public string CurrentRotationText => SelectedTransport is not null 
-        ? $"X: {SelectedTransport.RotationOffsetX:F0}° | Y: {SelectedTransport.RotationOffsetY:F0}°" 
-        : "X: 0° | Y: 0°";
+        ? $"X: {SelectedTransport.RotationOffsetX:F0}° | Y: {SelectedTransport.RotationOffsetY:F0}° | Z: {SelectedTransport.RotationOffsetZ:F0}°" 
+        : "X: 0° | Y: 0° | Z: 0°";
 
     partial void OnSelectedCategoryChanged(string value) => ApplyFilter();
     partial void OnSearchTextChanged(string value) => ApplyFilter();
@@ -111,6 +111,14 @@ public sealed partial class TransportViewModel : ObservableObject
     {
         if (SelectedTransport is null) return;
         SelectedTransport.RotationOffsetY = (SelectedTransport.RotationOffsetY + 90) % 360;
+        await ApplyRotationChangeAsync();
+    }
+
+    [RelayCommand]
+    private async Task RotateZAsync()
+    {
+        if (SelectedTransport is null) return;
+        SelectedTransport.RotationOffsetZ = (SelectedTransport.RotationOffsetZ + 90) % 360;
         await ApplyRotationChangeAsync();
     }
 

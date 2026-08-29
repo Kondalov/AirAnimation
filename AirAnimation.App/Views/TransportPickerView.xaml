@@ -91,23 +91,28 @@
                                FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="6,0,0,0"/>
                 </Grid>
                 
-                <!-- Row 1: Default Auto-Align + 180° Flip -->
+                <!-- Row 1: Default Auto-Align + 180° Flip + Upside Down Flip -->
                 <Grid Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1.2*"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Content="🎯 По умолчанию" Style="{StaticResource PrimaryBtn}"
                             Margin="0,0,2,0" Padding="0,5" FontSize="10"
-                            ToolTip="Автоматически выровнять модель на колёса и по направлению движения"
+                            ToolTip="Сбросить все углы (X:0, Y:0, Z:0)"
                             Command="{Binding ResetRotationCommand}"/>
                     <Button Grid.Column="1" Content="🔄 180°" Style="{StaticResource OutlineBtn}"
-                            Margin="2,0,0,0" Padding="0,5" FontSize="10"
+                            Margin="2,0,2,0" Padding="0,5" FontSize="10"
                             ToolTip="Развернуть перед/зад на 180°"
                             Command="{Binding Rotate180Command}"/>
+                    <Button Grid.Column="2" Content="🔄 Колёса" Style="{StaticResource OutlineBtn}"
+                            Margin="2,0,0,0" Padding="0,5" FontSize="10"
+                            ToolTip="Перевернуть вверх колесами / обратно (X +180°)"
+                            Command="{Binding FlipUpsideDownCommand}"/>
                 </Grid>
 
-                <!-- Row 2: Manual Axis Adjustments -->
+                <!-- Row 2: 3-Axis Adjustments (X, Y, Z) -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -117,18 +122,18 @@
                     
                     <Button Grid.Column="0" Content="🔄 X +90°" Style="{StaticResource OutlineBtn}"
                             Margin="0,0,2,0" Padding="0,5" FontSize="10"
-                            ToolTip="Наклонить по вертикали (X +90°)"
+                            ToolTip="Наклон вперед/назад (X +90° / Тангаж)"
                             Command="{Binding RotateXCommand}"/>
                     
                     <Button Grid.Column="1" Content="🔄 Y +90°" Style="{StaticResource OutlineBtn}"
                             Margin="2,0,2,0" Padding="0,5" FontSize="10"
-                            ToolTip="Повернуть вправо/влево (Y +90°)"
+                            ToolTip="Поворот влево/вправо (Y +90° / Рыскание)"
                             Command="{Binding RotateYCommand}"/>
 
-                    <Button Grid.Column="2" Content="🔄 Колёса" Style="{StaticResource OutlineBtn}"
+                    <Button Grid.Column="2" Content="🔄 Z +90°" Style="{StaticResource OutlineBtn}"
                             Margin="2,0,0,0" Padding="0,5" FontSize="10"
-                            ToolTip="Перевернуть вверх колесами / обратно (X +180°)"
-                            Command="{Binding FlipUpsideDownCommand}"/>
+                            ToolTip="Крен / поднять с бока (Z +90° / Крен)"
+                            Command="{Binding RotateZCommand}"/>
                 </Grid>
             </StackPanel>
         </Border>
